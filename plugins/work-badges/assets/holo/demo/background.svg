@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="530" height="742" viewBox="0 0 530 742">
+<!-- Original MaiBadges geometry. SPDX-License-Identifier: MIT -->
+<rect x="0" y="0" width="530" height="742" rx="0" fill="#214e42" fill-opacity="1.000000"/>
+<polygon points="0,0 530,0 530,292 0,113" fill="#315f50" fill-opacity="1.000000"/>
+<polygon points="0,197 530,386 530,441 0,252" fill="#285545" fill-opacity="1.000000"/>
+<polygon points="0,565 530,407 530,742 0,742" fill="#193e35" fill-opacity="1.000000"/>
+<polyline points="0,143 530,333" fill="none" stroke="#dae6cd" stroke-opacity="0.176471" stroke-width="2" stroke-linejoin="round"/>
+<polyline points="0,577 530,419" fill="none" stroke="#dae6cd" stroke-opacity="0.125490" stroke-width="2" stroke-linejoin="round"/>
+</svg>

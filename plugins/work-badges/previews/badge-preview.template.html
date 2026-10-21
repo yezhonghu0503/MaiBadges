@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MaiBadges · 实际挂载效果预览</title>
+<style>
+  :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color-scheme:light dark;--page:#f7f8fa;--ink:#20242c;--muted:#5e6877;--surface:#fff;--rule:#dce0e6;--control:#8490a0;--accent:#175fd5;--hover:#e8ecf2;--selection:#d6e5ff;--scroll:#a3acb9;background:var(--page);color:var(--ink);font-synthesis:none;-webkit-font-smoothing:antialiased}
+  @media(prefers-color-scheme:dark){:root{--page:#18191d;--ink:#eceef3;--muted:#a7afbc;--surface:#202228;--rule:#383d47;--control:#69778b;--accent:#8bb7ff;--hover:#2d323b;--selection:#25354e;--scroll:#596270}}
+  *{box-sizing:border-box}body{display:flow-root;margin:0;min-height:100vh;overflow-x:clip;scrollbar-width:thin;scrollbar-color:var(--scroll) var(--page)}::selection{background:var(--selection);color:var(--ink)}button,select{font:inherit;font-size:14px;color:inherit}button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button,select{border:1px solid var(--control);border-radius:8px;background:var(--surface);height:36px}button{padding:0 12px;cursor:pointer;white-space:nowrap}button:hover{background:var(--hover)}button:active{transform:translateY(1px)}button:disabled{opacity:.5;cursor:default}button:disabled:active{transform:none}select{width:100%;padding:0 30px 0 10px;cursor:pointer}select option{background:var(--surface);color:var(--ink)}a{color:var(--accent);text-underline-offset:3px}
+  .controls{position:relative;width:min(360px,calc(100vw - 64px));margin:64px 0 0 clamp(32px,7vw,104px);padding:0 0 24px}h1{font-size:22px;line-height:1.35;letter-spacing:-.025em;font-weight:650;margin:0 0 13px;text-wrap:balance}.intro{font-size:14px;line-height:1.7;color:var(--muted);margin:0 0 28px;max-width:33ch}.role-label{display:block;font-size:12px;font-weight:600;margin-bottom:7px}.role-select{margin-bottom:12px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}.instructions{font-size:14px;line-height:1.85;color:var(--muted);margin:0}.instructions strong{font-weight:600;color:var(--ink)}.sample-note{font-size:12px;line-height:1.7;color:var(--muted);margin:16px 0 0}.status-data{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;color:var(--muted);margin:20px 0 0;padding-top:16px;border-top:1px solid var(--rule)}.error{color:#ad332c;font-size:14px;line-height:1.6;margin-top:12px}.error:empty{display:none}
+  @media(max-width:759px){.controls{width:calc(100vw - 40px);margin:22px 20px 0;padding-bottom:0}h1{font-size:22px;margin-bottom:7px}.intro{font-size:12px;line-height:1.6;margin-bottom:14px;max-width:none}.preview-bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}.role-select{margin:0}.role-label{font-size:12px;margin-bottom:5px}.actions{gap:6px;margin:0}.actions button{padding:0 10px}.instructions{font-size:12px;line-height:1.6;margin-top:13px}.sample-note{font-size:12px;line-height:1.6;margin:5px 0 0}.status-data{font-size:12px;line-height:1.5;margin-top:9px;padding-top:9px}.error{font-size:12px;margin:6px 0 0}}
+  @media(max-width:399px){.controls{width:calc(100vw - 32px);margin:18px 16px 0}.preview-bar{gap:6px}.actions{gap:5px}.actions button{padding:0 8px;font-size:12px}.instructions .extra{display:none}}
+  @media(max-height:640px) and (max-width:759px){.controls{margin-top:12px}h1{font-size:22px;margin-bottom:3px}.intro{margin-bottom:8px}.instructions{margin-top:7px}.sample-note{margin-top:2px}.status-data{margin-top:5px;padding-top:5px}}
+</style>
+</head>
+<body>
+<main class="controls" id="preview-controls">
+  <h1>实际挂载效果预览</h1>
+  <p class="intro">实际聊天工牌使用此渲染器；效果以本页为准。</p>
+  <div class="preview-bar">
+    <div class="role-select"><label class="role-label" for="role-select">默认角色样例</label><select id="role-select" aria-label="选择默认角色样例"></select></div>
+    <div class="actions"><button id="restore-badge" type="button">显示工牌</button><button id="reset-badge" type="button">重置位置</button></div>
+  </div>
+  <p class="instructions"><strong>单击翻面，按住卡面转动，顶部拖动位置。</strong><span class="extra">顶部按钮可折叠或关闭；关闭后点击「显示工牌」恢复。</span></p>
+  <p class="sample-note">这里使用 5 个通用示例角色和原创几何分层素材，不读取或修改真实资料库。位置仅保留在本页内存中。</p>
+  <pre class="status-data" id="runtime-status" aria-live="polite" aria-label="工牌运行状态"></pre>
+  <p class="error" id="preview-error" role="alert"></p>
+</main>
+<script data-badge-runtime>
+/* __BADGE_RUNTIME_JS__ */
+</script>
+<script data-badge-preview>
+(() => {
+  'use strict';
+  const sample = /* __BADGE_PREVIEW_DATA__ */;
+  const api = window.MaiWorkBadgeRuntime;
+  const contextKey = 'isolated-holo-badge-preview';
+  const controls = document.getElementById('preview-controls');
+  const roleSelect = document.getElementById('role-select');
+  const statusOutput = document.getElementById('runtime-status');
+  const errorOutput = document.getElementById('preview-error');
+  const restoreButton = document.getElementById('restore-badge');
+  const preferences = new Map();
+  const sentAssets = new Set();
+  const avatars = {[sample.miloSourceId]: {avatarDataUrl:sample.avatarDataUrl,foregroundDataUrl:sample.foregroundDataUrl,contourDataUrl:sample.contourDataUrl,holoAssets:sample.holoAssets},...sample.avatars};
+  let selectedId = sample.profiles.some(role => role.id === 'max') ? 'max' : 'milo';
+  let statusFrame = null;
+  let positionOwned = false;
+  let starting = true;
+  function currentRole() { return sample.profiles.find(role => role.id === selectedId); }
+  function defaultLayout() {
+    const width = window.innerHeight < 640 && window.innerWidth < 760 ? 220 : 266;
+    const narrow = window.innerWidth < 760;
+    const top = Math.ceil(controls.getBoundingClientRect().bottom) + 24;
+    return {width, x:narrow ? (window.innerWidth - width) / 2 : Math.max(440,Math.round(window.innerWidth * .68 - width / 2)), y:narrow ? top : Math.min(150,Math.max(40,(window.innerHeight-width*372/266)/2))};
+  }
+  function renderStatus() {
+    statusFrame = null;
+    const status = api.status();
+    if (status.roleId === selectedId && !status.failed) preferences.set(selectedId,{layout:{...status.layout},cardState:{...status.cardState}});
+    const summary = {build:status.build,material:status.material,mounted:status.mounted,restorable:status.restorable,roleId:status.roleId,flipped:status.cardState.flipped,collapsed:status.cardState.collapsed,assetCacheHit:status.assetCacheHit,uiCacheHit:status.uiCacheHit,cache:status.cacheStats};
+    statusOutput.textContent = JSON.stringify(summary);
+    restoreButton.disabled = status.mounted && !status.failed;
+    errorOutput.textContent = status.failed ? '预览未能显示工牌（' + status.error + '）。请重新加载本页。' : '';
+  }
+  function scheduleStatus() {
+    if (statusFrame === null) statusFrame = requestAnimationFrame(renderStatus);
+  }
+  function showRole({resetPosition=false}={}) {
+    const role = currentRole();
+    const saved = preferences.get(selectedId);
+    const artwork = avatars[role.imageId] || {};
+    const assetKey = /^[a-f0-9]{64}$/.test(role.imageId || '') ? role.imageId : null;
+    const common = {role,contextKey,layout:resetPosition ? defaultLayout() : (saved?.layout || defaultLayout()),cardState:saved?.cardState || {flipped:false,collapsed:false}};
+    const material = artwork.holoAssets && Object.keys(artwork.holoAssets).length ? artwork.holoAssets : null;
+    // Match the loader: full four-plane packets omit duplicate legacy cutouts.
+    const complete = {avatarDataUrl:artwork.avatarDataUrl || '',...(material ? {holoAssets:material} : {foregroundDataUrl:artwork.foregroundDataUrl || '',contourDataUrl:artwork.contourDataUrl || ''}),...(assetKey ? {assetKey} : {})};
+    let shown = api.show({...common,...(assetKey && sentAssets.has(assetKey) ? {assetKey} : complete)});
+    if (shown.assetCacheMiss) shown = api.show({...common,...complete});
+    if (!shown.failed && !shown.assetCacheMiss && assetKey) sentAssets.add(assetKey);
+    if (api.status().restorable) api.restore();
+    renderStatus();
+    scheduleStatus();
+  }
+  for (const role of sample.profiles) {
+    const option = document.createElement('option');
+    option.value = role.id; option.textContent = role.name + ' · ' + role.role;
+    roleSelect.append(option);
+  }
+  roleSelect.value = selectedId;
+  roleSelect.addEventListener('change',() => {
+    renderStatus(); api.hide(); selectedId = roleSelect.value; positionOwned = false; showRole();
+  });
+  restoreButton.addEventListener('click',() => {
+    if (api.status().restorable) { api.restore(); renderStatus(); scheduleStatus(); }
+    else showRole();
+  });
+  document.getElementById('reset-badge').addEventListener('click',() => { positionOwned = false; showRole({resetPosition:true}); });
+  window.addEventListener('mai-work-badges-state',scheduleStatus);
+  window.addEventListener('mai-work-badges-context-stale',scheduleStatus);
+  // Pointer and keyboard events refresh position diagnostics after the actual
+  // renderer's queued layout update. There is no timer or perpetual RAF loop.
+  const fromBadge = event => event.composedPath().some(element => element?.hasAttribute?.('data-mai-work-badges'));
+  window.addEventListener('pointerup',event => { if(!starting && fromBadge(event))positionOwned = true; scheduleStatus(); },{capture:true});
+  window.addEventListener('keydown',event => { if(fromBadge(event) && event.key.startsWith('Arrow')) { positionOwned = true; scheduleStatus(); } },{capture:true});
+  window.addEventListener('resize',() => {
+    if (!positionOwned && api.status().mounted) showRole({resetPosition:true});
+    else scheduleStatus();
+  });
+  api.configure({fontDataUrl:sample.fontDataUrl});
+  showRole(); starting = false;
+})();
+</script>
+</body>
+</html>

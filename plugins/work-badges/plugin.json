@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "work-badges",
+  "version": "0.7.0",
+  "description": "MaiBadges: manage local role badges and explicit chat bindings, with an optional user-installed floating-card loader.",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true
+    }
+  }
+}

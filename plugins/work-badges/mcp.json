@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "work_badges": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "${PLUGIN_ROOT}/backend/main.py"
+      ],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

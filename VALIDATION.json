@@ -1,0 +1,69 @@
+{
+  "version": "0.7.0",
+  "validatedAt": "2026-10-21T04:20:47.373878+00:00",
+  "mode": "offline-only",
+  "connectedToChatGPT": false,
+  "installedByAgent": false,
+  "liveClientVerified": false,
+  "visualRenderingVerified": false,
+  "checks": [
+    {
+      "name": "python syntax",
+      "passed": true
+    },
+    {
+      "name": "JavaScript syntax (including built UI and read-only preview)",
+      "count": 9,
+      "passed": true
+    },
+    {
+      "name": "tests",
+      "count": 77,
+      "passed": true
+    },
+    {
+      "name": "plugins/work-badges/tests",
+      "count": 74,
+      "passed": true
+    },
+    {
+      "name": "plugins/work-badges/loader/tests",
+      "count": 30,
+      "passed": true
+    },
+    {
+      "name": "tests/check-manager.mjs",
+      "count": 39,
+      "passed": true
+    },
+    {
+      "name": "plugins/work-badges/tests/check-renderer.mjs",
+      "count": 53,
+      "passed": true
+    },
+    {
+      "name": "tests/check-holo-engine.mjs",
+      "count": 8,
+      "passed": true
+    },
+    {
+      "name": "built manager + MCP resource + real seed avatar",
+      "passed": true
+    },
+    {
+      "name": "plugin metadata and stdio entry",
+      "passed": true
+    },
+    {
+      "name": "production launcher ICNS and PNG assets",
+      "passed": true
+    },
+    {
+      "name": "exact generic demo identity, aligned material, allowlisted public assets",
+      "passed": true
+    }
+  ],
+  "pythonTests": 181,
+  "nodeContracts": 100,
+  "passed": true
+}

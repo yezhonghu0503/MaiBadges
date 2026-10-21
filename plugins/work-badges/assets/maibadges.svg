@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<!-- Original MaiBadges geometry. SPDX-License-Identifier: MIT -->
+<rect x="48" y="48" width="928" height="928" rx="214" fill="#173f36" fill-opacity="1.000000"/>
+<rect x="66" y="66" width="892" height="892" rx="198" fill="#1e4d41" fill-opacity="1.000000"/>
+<rect x="295" y="292" width="500" height="538" rx="86" fill="#0b2722" fill-opacity="0.588235"/>
+<rect x="261.08" y="239.83999999999997" width="501.8400000000001" height="556.9200000000001" rx="91.8" fill="#f4f1e5" fill-opacity="1.000000"/>
+<rect x="407.96" y="178.64" width="208.07999999999998" height="128.51999999999998" rx="42.84" fill="#173f36" fill-opacity="1.000000"/>
+<rect x="456.92" y="215.36" width="110.16000000000003" height="30.599999999999966" rx="15.3" fill="#f4f1e5" fill-opacity="1.000000"/>
+<ellipse cx="438.56" cy="466.28000000000003" rx="79.56" ry="79.56" fill="#769bd0" fill-opacity="1.000000"/>
+<rect x="573.2" y="411.2" width="97.91999999999996" height="36.72000000000003" rx="18.36" fill="#173f36" fill-opacity="1.000000"/>
+<rect x="573.2" y="490.76" width="97.91999999999996" height="36.72000000000003" rx="18.36" fill="#173f36" fill-opacity="1.000000"/>
+<rect x="359.0" y="625.4" width="312.12" height="42.84000000000003" rx="21.42" fill="#173f36" fill-opacity="1.000000"/>
+<rect x="359.0" y="704.96" width="220.32000000000005" height="24.480000000000018" rx="12.24" fill="#173f36" fill-opacity="0.431373"/>
+<ellipse cx="787.0" cy="775.0" rx="72.0" ry="72.0" fill="#769bd0" fill-opacity="1.000000"/>
+<polyline points="754,775 780,801 822,753" fill="none" stroke="#f4f1e5" stroke-opacity="1.000000" stroke-width="14" stroke-linejoin="round"/>
+</svg>

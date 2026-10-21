@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "name": "Original geometric demo",
+  "license": "MIT",
+  "sourceImageId": "bad02c86952324615efafffa529bcd2249529066dded16c645d61978c4667cb2",
+  "sourceDimensions": [
+    530,
+    742
+  ],
+  "files": {
+    "foreground": "character.png",
+    "contour": "contour-alpha.png",
+    "character": "character.png",
+    "background": "background.png",
+    "ui": "ui-live.png",
+    "structure": "structure.png"
+  },
+  "sha256": {
+    "character.png": "33067cc04ac78277c95ec204d8c898fdccd31390e3200ceab9b1e55e05266999",
+    "background.png": "2e4632fd1a4d1d7b95f767b147c1b11cf2dc15091e48f7bcd6d6eeca332edb9c",
+    "ui.png": "0ea5ce8fc9e8561a116f1903ac1f14cbaa52711c5c764aaa13b19174013e98f8",
+    "ui-live.png": "0ea5ce8fc9e8561a116f1903ac1f14cbaa52711c5c764aaa13b19174013e98f8",
+    "structure.png": "882193d227a740b8289a214bc658039d18f6bf32644b776fd4237b47431cf93c",
+    "contour-alpha.png": "882193d227a740b8289a214bc658039d18f6bf32644b776fd4237b47431cf93c"
+  }
+}
