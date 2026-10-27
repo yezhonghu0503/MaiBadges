@@ -281,14 +281,537 @@ async function createBadgeHoloRenderer(canvas, assets, options = {}) {
   } catch (error) { release(); throw error; }
 }
 
-  const BUILD = '0.7.0';
+  /* Scoped navigation decoration. Native rows, labels, status icons and handlers stay owned by the host. */
+function createMaiSidebarCards({signatureForRole, projectTitle = ''} = {}) {
+  const token = 'mai-sidebar-' + Math.random().toString(36).slice(2);
+  const INTERACTIVE = 'a,button,[role="button"],[role="link"]';
+  const LANDMARK = 'nav,aside,[role="navigation"],[data-sidebar],[data-testid*="sidebar"],[id*="sidebar" i],[class*="sidebar" i]';
+  const EXCLUDED = 'article,textarea,input,[contenteditable="true"],[contenteditable=""],[contenteditable="plaintext-only"],[role="textbox"],[data-message-author-role],[data-testid^="conversation-turn"],[data-mai-work-badges]';
+  const ROW = 'data-mai-sidebar-row', LABEL = 'data-mai-sidebar-label', CARD = 'data-mai-sidebar-card';
+  const HEADERS = 'span,div,p,strong,label,h1,h2,h3,h4,h5,h6,a,button,[role="heading"],[title],[aria-label]';
+  const SCAN_INTERVAL_MS = 160;
+  // A role's identifier selects only a neutral tint, never bundled identity art.
+  const palettes = [['#c6b379', '#ffedac'], ['#a6bedb', '#dbefff'], ['#c6acd3', '#f2dcff']];
+  function paletteForRole(id) {
+    let hash = 0;
+    for (const character of id) hash = (Math.imul(hash, 31) + character.codePointAt(0)) >>> 0;
+    return palettes[hash % palettes.length];
+  }
+  const mounts = new Map();
+  const projectConfigured = projectTitle !== '';
+  const projectName = typeof projectTitle === 'string' && Array.from(projectTitle).length <= 2048 && !projectTitle.includes('\0') ? projectTitle : null;
+  let projectScope = {configured: projectConfigured, headers: 0, roots: 0, matches: 0};
+  const reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  let items = [], sheet = null, observer = null, headObserver = null, scanFrame = 0, scanTimer = 0, motionFrame = 0, removed = false;
+  let scanRoots = [], discoverRoots = true, candidatesDirty = true, cachedCandidates = [], cachedHeaders = [], lastScanAt = -Infinity;
+  const clock = () => typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+  const performanceStats = {scans: 0, fullScans: 0, scopedScans: 0, mutationBatches: 0, observedMutations: 0, ignoredMutations: 0, coalescedRequests: 0, lastScanMs: 0, maxScanMs: 0, lastCandidateNodes: 0, lastHeaderNodes: 0, geometryReads: 0, clientRectReads: 0, computedStyleReads: 0};
+  let lastTitle = document.title,ambiguityDetails=[];
+  let pendingMotion = new Map(), errors = 0, lastError = null;
+  let diagnostics = {candidates: 0, semanticCandidates: 0, fallbackCandidates: 0, matched: 0, ambiguous: 0, missingLabel: 0};
+  const CSS = `
+    [${ROW}="${token}"] > [${CARD}="${token}"]{position:absolute;inset:0;z-index:0;isolation:isolate;overflow:hidden;border-radius:inherit;pointer-events:none;background:#182322;color:#fff8e5;transform:perspective(850px) rotateX(var(--mai-rx,0deg)) rotateY(var(--mai-ry,0deg));transition:transform 300ms cubic-bezier(.16,1,.3,1);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}
+    [${CARD}="${token}"] *{box-sizing:border-box;pointer-events:none}
+    [${CARD}="${token}"] .mai-sidebar-material,[${CARD}="${token}"] .mai-sidebar-shade,[${CARD}="${token}"] .mai-sidebar-foil{position:absolute;pointer-events:none}
+    [${CARD}="${token}"] .mai-sidebar-material{inset:-5px;z-index:0;background-position:center 42%;background-size:cover;transform:translate(var(--mai-bg-x,0px),var(--mai-bg-y,0px)) scale(1.035);transition:transform 300ms cubic-bezier(.16,1,.3,1)}
+    [${CARD}="${token}"] .mai-sidebar-shade{inset:0;z-index:1;background:linear-gradient(90deg,rgb(2 10 14 / 3%) 0%,rgb(2 10 14 / 12%) 25%,rgb(2 10 14 / 65%) 43%,rgb(2 10 14 / 73%) 100%)}
+    [${CARD}="${token}"] .mai-sidebar-foil{inset:0;z-index:2;opacity:0;background:linear-gradient(118deg,transparent 7%,rgb(219 243 255 / 12%) 31%,rgb(255 230 155 / 42%) 42%,rgb(231 211 255 / 24%) 48%,transparent 63%);background-size:230% 140%;background-position:var(--mai-shine-x,50%) var(--mai-shine-y,35%);mask-image:linear-gradient(90deg,#000 0%,#000 25%,transparent 43%,transparent 93%,#000 100%);transition:opacity 180ms}
+    [${CARD}="${token}"] .mai-sidebar-avatar{position:absolute;left:0;bottom:0;z-index:3;width:100px;height:66px;overflow:visible}
+    [${CARD}="${token}"] .mai-sidebar-avatar img{position:absolute;left:-2px;top:var(--mai-portrait-top,-11px);width:104px;height:auto;max-width:none;transform:translateX(var(--mai-person-x,0px));transition:transform 300ms cubic-bezier(.16,1,.3,1);user-select:none;-webkit-user-drag:none}
+    [${CARD}="${token}"] .mai-sidebar-copy{position:absolute;z-index:4;left:103px;right:28px;top:7px;height:52px;display:flex;flex-direction:column;justify-content:center;gap:0;min-width:0;text-align:left}
+    [${CARD}="${token}"] .mai-sidebar-name{display:block;height:35px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.05;letter-spacing:0;transform:rotate(var(--mai-signature-angle,0deg));transform-origin:18% 65%;text-shadow:0 1px 5px rgb(0 0 0 / 65%)}
+    [${CARD}="${token}"] .mai-sidebar-role{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e0e1d9;font-size:12px;line-height:17px;font-weight:400;text-shadow:0 1px 4px rgb(0 0 0 / 65%)}
+    [${CARD}="${token}"]::after{content:'';position:absolute;inset:0;z-index:5;border-radius:inherit;padding:1px;pointer-events:none;background:linear-gradient(118deg,rgb(255 247 207 / 82%),rgb(208 241 239 / 40%) 24%,rgb(183 207 233 / 40%) 51%,rgb(231 202 255 / 65%) 77%,rgb(255 239 190 / 90%));mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;opacity:.38;transition:opacity 180ms}
+    [${ROW}="${token}"]:is(:hover,:focus-visible,[aria-current="true"],[aria-current="page"],[aria-selected="true"]) > [${CARD}="${token}"]::after{opacity:1}
+    [${ROW}="${token}"][data-mai-sidebar-current="${token}"] > [${CARD}="${token}"]::after{opacity:1}
+    [${ROW}="${token}"]:is(:hover,:focus-visible) > [${CARD}="${token}"] .mai-sidebar-foil{opacity:1}
+    [${ROW}="${token}"]:is([aria-current="true"],[aria-current="page"],[aria-selected="true"]) > [${CARD}="${token}"] .mai-sidebar-name{color:var(--mai-glint,#efffe9)}
+    [${CARD}="${token}"][data-mai-motion],[${CARD}="${token}"][data-mai-motion] .mai-sidebar-material,[${CARD}="${token}"][data-mai-motion] .mai-sidebar-avatar img{transition-duration:75ms;transition-timing-function:linear}
+    @media(prefers-reduced-motion:reduce){[${CARD}="${token}"],[${CARD}="${token}"] *{transition:none!important;transform:none!important}}
+  `;
+
+  function element(name, className, text) {
+    const node = document.createElement(name);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function ownStyle(record, node, name, value, priority = 'important') {
+    let styles = record.styles.get(node);
+    if (!styles) record.styles.set(node, styles = new Map());
+    let entry = styles.get(name);
+    if (entry && (node.style.getPropertyValue(name) !== entry.value || node.style.getPropertyPriority(name) !== entry.ownedPriority)) return;
+    if (!entry) {
+      entry = {before: node.style.getPropertyValue(name), priority: node.style.getPropertyPriority(name)};
+      styles.set(name, entry);
+    }
+    if (node.style.getPropertyValue(name) !== value || node.style.getPropertyPriority(name) !== priority) node.style.setProperty(name, value, priority);
+    entry.value = node.style.getPropertyValue(name); entry.ownedPriority = node.style.getPropertyPriority(name);
+  }
+  function ownAttribute(record, node, name, value) {
+    let attributes = record.attributes.get(node);
+    if (!attributes) record.attributes.set(node, attributes = new Map());
+    if (attributes.has(name) && node.getAttribute(name) !== attributes.get(name).value) return;
+    if (!attributes.has(name)) attributes.set(name, {before: node.getAttribute(name), had: node.hasAttribute(name)});
+    if (node.getAttribute(name) !== value) {
+      if (value === null) node.removeAttribute(name); else node.setAttribute(name, value);
+    }
+    attributes.get(name).value = value;
+  }
+  function restore(record) {
+    record.events.abort(); pendingMotion.delete(record);
+    record.card.remove();
+    for (const [node, styles] of record.styles) for (const [name, entry] of styles) {
+      if (node.style.getPropertyValue(name) !== entry.value || node.style.getPropertyPriority(name) !== entry.ownedPriority) continue;
+      if (entry.before) node.style.setProperty(name, entry.before, entry.priority); else node.style.removeProperty(name);
+    }
+    for (const [node, attributes] of record.attributes) for (const [name, entry] of attributes) {
+      if (node.getAttribute(name) !== entry.value) continue;
+      if (entry.had) node.setAttribute(name, entry.before); else node.removeAttribute(name);
+    }
+    mounts.delete(record.row);
+  }
+  function isOwn(node) {
+    return node?.nodeType === 1 && (node === sheet || node.getAttribute?.(CARD) === token || Boolean(node.closest?.(`[${CARD}="${token}"]`)));
+  }
+  function visible(row) {
+    if (!row.isConnected || row.hidden || row.getAttribute('aria-hidden') === 'true' || !clientRects(row).length) return false;
+    const style = computedStyle(row), rect = geometry(row);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.visibility !== 'collapse' && rect.width >= 110 && rect.height > 0;
+  }
+  function geometry(node) { performanceStats.geometryReads++; return node.getBoundingClientRect(); }
+  function clientRects(node) { performanceStats.clientRectReads++; return node.getClientRects(); }
+  function computedStyle(node) { performanceStats.computedStyleReads++; return getComputedStyle(node); }
+  function elementOf(node) { return node?.nodeType === 1 ? node : node?.parentElement || null; }
+  function insideRoots(node) { return Boolean(node && scanRoots.some(root => root === node || root.contains(node))); }
+  function invalidateRoots() { discoverRoots = true; candidatesDirty = true; }
+  function queryRoots(selector) {
+    const roots = discoverRoots ? [document] : scanRoots;
+    const result = new Set();
+    for (const root of roots) {
+      if (root.nodeType === 1 && root.matches(selector)) result.add(root);
+      for (const node of root.querySelectorAll(selector)) result.add(node);
+    }
+    return [...result];
+  }
+  function rememberRoots(candidates) {
+    const roots = new Set();
+    // Retain all candidate navigation branches, including unbound rows, so a
+    // later duplicate title cannot escape ambiguity checks in a cached scope.
+    for (const {row} of candidates) {
+      let root = row;
+      for (let ancestor = row.parentElement; ancestor && ancestor !== document.body && ancestor !== document.documentElement; ancestor = ancestor.parentElement) {
+        if (ancestor.matches('main,[role="main"],dialog,[role="dialog"],header,[role="toolbar"]') || ancestor.closest(EXCLUDED)) break;
+        const rect = geometry(ancestor);
+        if (rect.left < -1 || rect.left > 360 || rect.width > 450) break;
+        root = ancestor;
+      }
+      roots.add(root);
+    }
+    // Empty and temporarily collapsed navigation must still be discoverable.
+    for (const node of document.querySelectorAll(LANDMARK)) {
+      if (isOwn(node) || node.closest(EXCLUDED) || !node.isConnected) continue;
+      const rect = geometry(node);
+      if (rect.left >= -1 && rect.left <= 360 && rect.width > 0 && rect.width <= 450) roots.add(node);
+    }
+    scanRoots = [...roots].filter(node => ![...roots].some(other => other !== node && other.contains(node)));
+    // An app without a discoverable navigation area stays in discovery mode.
+    // Its body observer still ignores conversation and editor mutations.
+    discoverRoots = scanRoots.length === 0;
+  }
+  function possibleNavigation(node) {
+    if (node?.nodeType !== 1 || isOwn(node) || node.closest(EXCLUDED)) return false;
+    if (node.matches(LANDMARK) || node.querySelector(LANDMARK)) return true;
+    if (node.closest('main,[role="main"],dialog,[role="dialog"],header,[role="toolbar"]')) return false;
+    return node.matches(INTERACTIVE) || Boolean(node.querySelector(INTERACTIVE));
+  }
+  function relevantMutation(record) {
+    const target = elementOf(record.target);
+    if (!target || isOwn(target) || target.closest(EXCLUDED)) return false;
+    const changed = record.type === 'childList' ? [...record.addedNodes, ...record.removedNodes].filter(node => !isOwn(node)) : [];
+    if (record.type === 'childList' && !changed.length && (record.addedNodes.length || record.removedNodes.length)) return false;
+    if (insideRoots(target)) {
+      if (record.type === 'childList' || record.type === 'attributes' && ['role', 'title', 'aria-label', 'href'].includes(record.attributeName)) candidatesDirty = true;
+      return true;
+    }
+    if (record.type === 'childList') {
+      if (scanRoots.some(root => !root.isConnected || changed.some(node => node === root || node.nodeType === 1 && node.contains(root))) || changed.some(possibleNavigation)) {
+        invalidateRoots(); return true;
+      }
+      return false;
+    }
+    // Streaming text and editing outside navigation never schedule a scan.
+    // Metadata can reveal a newly visible/recycled navigation branch.
+    if (record.type === 'attributes' && (target.closest(LANDMARK) || possibleNavigation(target))) {
+      invalidateRoots(); return true;
+    }
+    return false;
+  }
+  function threadKeys(row) {
+    const keys = new Set();
+    for (const attribute of ['data-thread-id', 'data-conversation-id']) {
+      const value = row.getAttribute(attribute); if (value) keys.add(value);
+    }
+    const href = row.getAttribute('href');
+    if (href) {
+      try {
+        const url = new URL(href, location.href), match = url.pathname.match(/\/(?:threads|c)\/([^/?#]+)\/?$/);
+        if (match) { keys.add(href); keys.add(url.pathname); keys.add(decodeURIComponent(match[1])); }
+      } catch {} // Malformed navigation metadata is simply not a thread identity.
+    }
+    return keys;
+  }
+  function stableTarget(row) {
+    for (const attribute of ['data-thread-id', 'data-conversation-id']) {
+      const value = row.getAttribute(attribute); if (value) return value;
+    }
+    try {
+      const href = row.getAttribute('href');
+      const match = href && new URL(href, location.href).pathname.match(/\/(?:threads|c)\/([^/?#]+)\/?$/);
+      return match ? decodeURIComponent(match[1]) : null;
+    } catch { return null; }
+  }
+  function sameStableTarget(group) {
+    const first = group.length ? stableTarget(group[0].row) : null;
+    return Boolean(first && group.every(match => stableTarget(match.row) === first));
+  }
+  function ambiguitySummary(group) {
+    const known = group.map(match=>stableTarget(match.row)).filter(Boolean);
+    return {roleId:group[0]?.item.roleId,rows:group.length,knownTargets:known.length,distinctTargets:new Set(known).size,
+      nestedPairs:group.reduce((count,a)=>count+group.filter(b=>a!==b&&a.row.contains(b.row)).length,0),
+      sameLabelNode:new Set(group.map(match=>match.label)).size<group.length,
+      structure:group.slice(0,6).map(({row,label})=>({tag:row.tagName,role:row.getAttribute('role'),hasHref:row.hasAttribute('href'),
+        labelTag:label.tagName,labelSource:label.hasAttribute('title')?'title':label.hasAttribute('aria-label')?'aria':'text',
+        hasThreadAttribute:row.hasAttribute('data-thread-id')||row.hasAttribute('data-conversation-id'),
+        hrefKind:(()=>{try{const value=row.getAttribute('href');if(!value)return 'none';const u=new URL(value,location.href);return /\/(threads|c)\//.test(u.pathname)?'known-thread':u.hash?'hash':u.search?'query':'other-path';}catch{return 'invalid';}})()}))};
+  }
+  function leaves(row) {
+    const result = [];
+    for (const node of row.querySelectorAll('span,div,p')) {
+      if (result.length >= 96) break;
+      if (isOwn(node) || node.childElementCount || node.closest(INTERACTIVE) !== row || node.closest(EXCLUDED) || node.closest('[role="status"],[role="alert"],[aria-live]')) continue;
+      const values = new Set();
+      for (const attribute of ['title', 'aria-label']) { const value = node.getAttribute(attribute); if (value && value.length <= 2048) values.add(value); }
+      const text = node.textContent;
+      if (!values.size && text && text.length <= 2048) values.add(text);
+      if (values.size) result.push({node, values});
+    }
+    return result;
+  }
+  function identify(row, entries) {
+    const keys = threadKeys(row), labelEntries = leaves(row), titleValues = new Set();
+    for (const attribute of ['title', 'aria-label']) { const value = row.getAttribute(attribute); if (value) titleValues.add(value); }
+    // Prefer explicitly named title leaves. Adjacent native status copy can
+    // coincidentally equal a role/chat name and never supplies a chat identity.
+    const explicitLabels = labelEntries.filter(leaf => leaf.node.hasAttribute('title'));
+    const titleLeaves = explicitLabels.length ? explicitLabels : labelEntries;
+    for (const leaf of titleLeaves) for (const value of leaf.values) titleValues.add(value);
+    const threadMatches = entries.filter(item => item.bindings.some(binding => binding.kind === 'thread' && keys.has(binding.key)));
+    const matches = threadMatches.length ? threadMatches : entries.filter(item => item.bindings.some(binding => binding.kind === 'title' && titleValues.has(binding.key)));
+    if (matches.length !== 1) return null;
+    const item = matches[0];
+    const exact = titleLeaves.find(leaf => item.bindings.some(binding => binding.kind === 'title' && leaf.values.has(binding.key)));
+    const label = exact?.node || labelEntries.find(leaf => Boolean(leaf.node.textContent?.trim()))?.node;
+    if (!label) { diagnostics.missingLabel++; return null; }
+    const kind = threadMatches.length ? 'thread' : 'title';
+    const binding = item.bindings.find(binding => binding.kind === kind && (kind === 'thread' ? keys : titleValues).has(binding.key));
+    const titleIdentities = item.bindings.filter(binding => binding.kind === 'title' && titleValues.has(binding.key)).map(binding => JSON.stringify(['title', binding.key]));
+    return {row, item, label, kind, identity: JSON.stringify([kind, binding.key]), titleIdentities};
+  }
+  function candidateRows() {
+    const result = [];
+    if (candidatesDirty) cachedCandidates = queryRoots(INTERACTIVE);
+    performanceStats.lastCandidateNodes = cachedCandidates.length;
+    for (const row of cachedCandidates) {
+      if (isOwn(row) || row.closest(EXCLUDED) || !visible(row)) continue;
+      const semantic = Boolean(row.closest(LANDMARK)), keys = threadKeys(row), rect = geometry(row);
+      // Some apps wrap the entire shell in <main>; its nested navigation is
+      // still navigation. Unscoped links inside the conversation remain out.
+      if (!semantic && row.closest('main,[role="main"]')) continue;
+      if (row.closest('dialog,[role="dialog"]') || !semantic && row.closest('header,[role="toolbar"]')) continue;
+      if (semantic && (rect.left < -1 || rect.left > 360)) continue;
+      const left = rect.left >= -1 && rect.left <= 360 && rect.right <= Math.min(450, Math.max(360, (window.innerWidth || 1024) * .4));
+      const fallback = left && !row.closest('header,[role="toolbar"],dialog,[role="dialog"]');
+      if (!semantic && !keys.size && !fallback) continue;
+      diagnostics.candidates++;
+      if (semantic) diagnostics.semanticCandidates++; else diagnostics.fallbackCandidates++;
+      result.push({row, semantic});
+    }
+    return result;
+  }
+  function exactProjectMetadata(node) {
+    return node.getAttribute('title') === projectName || node.getAttribute('aria-label') === projectName ||
+      !node.childElementCount && node.textContent === projectName;
+  }
+  function projectMatches(matches) {
+    if (!projectConfigured) { projectScope.matches = matches.length; return matches; }
+    if (!projectName || !matches.length) return [];
+    const rawHeaders = [];
+    if (candidatesDirty) cachedHeaders = queryRoots(HEADERS);
+    performanceStats.lastHeaderNodes = cachedHeaders.length;
+    for (const node of cachedHeaders) {
+      // Read only navigation metadata; never aggregate a container's copy.
+      if (isOwn(node) || node.closest(EXCLUDED) || !node.isConnected || node.hidden || node.getAttribute('aria-hidden') === 'true' || !clientRects(node).length) continue;
+      const semantic = Boolean(node.closest(LANDMARK)), rect = geometry(node), style = computedStyle(node);
+      if (rect.left < -1 || rect.left > 360 || !rect.width || !rect.height || style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') continue;
+      if (node.closest('dialog,[role="dialog"]') || !semantic && node.closest('main,[role="main"],header,[role="toolbar"]')) continue;
+      if (!semantic && rect.right > Math.min(450, Math.max(360, (window.innerWidth || 1024) * .4))) continue;
+      if (matches.some(match => match.row.contains(node)) || !exactProjectMetadata(node)) continue;
+      rawHeaders.push(node);
+    }
+    // A title attribute on a heading control and its identical leaf are one
+    // heading. Separate project branches with the same name remain ambiguous.
+    const leaves = rawHeaders.filter(node => !rawHeaders.some(other => node !== other && node.contains(other)));
+    const headers = [...new Set(leaves.map(node => node.closest('button,a,[role="button"],[role="link"],[role="heading"],h1,h2,h3,h4,h5,h6') || node))];
+    projectScope.headers = headers.length;
+    const roots = new Set();
+    let unresolved = false;
+    for (const header of headers) {
+      let root = null;
+      for (let ancestor = header; ancestor && ancestor !== document.body && ancestor !== document.documentElement; ancestor = ancestor.parentElement) {
+        if (ancestor.closest(EXCLUDED) || ancestor.getAttribute('aria-expanded') === 'false') break;
+        // Never let a collapsed/empty project expand its scope to the shared
+        // sidebar navigation, where an identically titled recent chat may live.
+        if (ancestor.matches('nav,aside,[role="navigation"]') && ancestor.getAttribute('title') !== projectName && ancestor.getAttribute('aria-label') !== projectName) break;
+        if (matches.some(match => ancestor.contains(match.row))) { root = ancestor; break; }
+        if (ancestor.matches('section,[role="group"],[data-project-id],[data-project-group]')) break;
+      }
+      if (root) roots.add(root); else unresolved = true;
+    }
+    projectScope.roots = roots.size;
+    if (unresolved || roots.size !== 1) return [];
+    const root = roots.values().next().value;
+    const scoped = matches.filter(match => root.contains(match.row));
+    projectScope.matches = scoped.length;
+    return scoped;
+  }
+  function resetMotion(record) {
+    if (!record) return;
+    pendingMotion.delete(record); record.card.removeAttribute('data-mai-motion');
+    for (const name of ['--mai-rx', '--mai-ry', '--mai-person-x', '--mai-bg-x', '--mai-bg-y', '--mai-shine-x', '--mai-shine-y']) record.card.style.removeProperty(name);
+  }
+  function resetAllMotion() {
+    if (motionFrame) cancelAnimationFrame(motionFrame); motionFrame = 0; pendingMotion.clear();
+    for (const record of mounts.values()) resetMotion(record);
+  }
+  function queueMotion(record, event) {
+    if (event.pointerType !== 'mouse' || reduced?.matches || document.hidden || !record.row.isConnected) return;
+    const bounds = geometry(record.row);
+    if (!bounds.width || !bounds.height) return;
+    const x = Math.max(-1, Math.min(1, (event.clientX - bounds.left) / bounds.width * 2 - 1));
+    const y = Math.max(-1, Math.min(1, (event.clientY - bounds.top) / bounds.height * 2 - 1));
+    pendingMotion.set(record, {x, y});
+    if (motionFrame) return;
+    motionFrame = requestAnimationFrame(() => {
+      motionFrame = 0;
+      for (const [record, point] of pendingMotion) {
+        if (!mounts.has(record.row) || document.hidden || reduced?.matches) continue;
+        const {x, y} = point, style = record.card.style;
+        record.card.setAttribute('data-mai-motion', '');
+        style.setProperty('--mai-rx', `${(-y * 3).toFixed(2)}deg`); style.setProperty('--mai-ry', `${(x * 4).toFixed(2)}deg`);
+        style.setProperty('--mai-person-x', `${(x * 1.8).toFixed(2)}px`); style.setProperty('--mai-bg-x', `${(-x * 2).toFixed(2)}px`); style.setProperty('--mai-bg-y', `${(-y * 1.3).toFixed(2)}px`);
+        style.setProperty('--mai-shine-x', `${(50 + x * 38).toFixed(1)}%`); style.setProperty('--mai-shine-y', `${(35 + y * 18).toFixed(1)}%`);
+      }
+      pendingMotion.clear();
+    });
+  }
+  function raiseNativeIcons(record) {
+    // Host task state may be text or a CSS shape rather than an SVG. Keep all
+    // native row children above the decorative card; only its title is hidden.
+    const nativeNodes = new Set([...record.row.children, ...record.row.querySelectorAll('svg,[role="status"],[role="alert"],[aria-live]')]);
+    for (const icon of nativeNodes) {
+      if (isOwn(icon) || icon === record.label) continue;
+      const path = [];
+      for (let container = icon; container && container !== record.row; container = container.parentElement) path.push(container);
+      const previous = record.iconPaths.get(icon);
+      if (previous && previous.length === path.length && path.every((container, index) => container === previous[index])) continue;
+      for (const container of path) {
+        if (computedStyle(container).position === 'static') ownStyle(record, container, 'position', 'relative');
+        ownStyle(record, container, 'z-index', container === icon ? '4' : '3');
+      }
+      record.iconPaths.set(icon, path);
+    }
+  }
+  function markCurrent(record, match) {
+    const titleIdentity = JSON.stringify(['title', document.title]);
+    let current = match.titleIdentities.includes(titleIdentity);
+    if (!current && match.kind === 'thread') {
+      try {
+        const path = new URL(location.href).pathname, currentKey = path.match(/\/(?:threads|c)\/([^/?#]+)\/?$/);
+        const rowKeys = threadKeys(record.row);
+        current = Boolean(currentKey && (rowKeys.has(path) || rowKeys.has(decodeURIComponent(currentKey[1]))));
+      } catch {}
+    }
+    ownAttribute(record, record.row, 'data-mai-sidebar-current', current ? token : null);
+  }
+  function mount(match) {
+    const {row, item, label} = match;
+    const record = {row, label, item, styles: new Map(), attributes: new Map(), iconPaths: new WeakMap(), events: new AbortController(), card: element('span')};
+    mounts.set(row, record);
+    record.card.setAttribute(CARD, token); record.card.setAttribute('aria-hidden', 'true');
+    record.card.style.pointerEvents = 'none';
+    ownAttribute(record, row, ROW, token); ownAttribute(record, label, LABEL, token);
+    if (computedStyle(row).position === 'static') ownStyle(record, row, 'position', 'relative');
+    for (const [name, value] of Object.entries({'height': '68px', 'min-height': '68px', 'margin-top': '0px', 'margin-bottom': '8px', 'box-sizing': 'border-box', 'border-radius': '12px', 'overflow': 'hidden', 'isolation': 'isolate', 'padding-left': '103px', 'padding-right': '12px', 'background-color': '#182322'})) ownStyle(record, row, name, value);
+    ownStyle(record, label, 'opacity', '0');
+    const [edge, glint] = paletteForRole(item.roleId);
+    record.card.style.setProperty('--mai-edge', edge); record.card.style.setProperty('--mai-glint', glint); record.card.style.setProperty('--mai-portrait-top', '-11px');
+    const material = element('span', 'mai-sidebar-material');
+    if (item.backgroundDataUrl) material.style.backgroundImage = `url("${item.backgroundDataUrl}")`;
+    const avatar = element('span', 'mai-sidebar-avatar');
+    if (item.characterDataUrl) {
+      const image = element('img'); image.alt = ''; image.draggable = false; image.decoding = 'async';
+      image.src = item.characterDataUrl; avatar.append(image);
+    }
+    const copy = element('span', 'mai-sidebar-copy'), name = element('span', 'mai-sidebar-name', item.name);
+    let signature = null;
+    try { signature = typeof signatureForRole === 'function' ? signatureForRole(item.roleId) : null; } catch {}
+    const family = signature && typeof signature.family === 'string' && /^[a-zA-Z0-9 _-]{1,100}$/.test(signature.family) ? signature.family : null;
+    const size = parseFloat(signature?.size), weight = parseFloat(signature?.weight), angle = parseFloat(signature?.angle);
+    name.style.fontFamily = family ? `"${family}",cursive` : '"MaiWorkBadgesDisplay",-apple-system,BlinkMacSystemFont,sans-serif';
+    name.style.fontSize = (family && Number.isFinite(size) ? Math.max(16, Math.min(44, size)) : 21) + 'px';
+    name.style.fontWeight = String(family && Number.isFinite(weight) ? Math.max(100, Math.min(900, weight)) : 650);
+    name.style.setProperty('--mai-signature-angle', (family && Number.isFinite(angle) ? Math.max(-12, Math.min(12, angle)) : 0) + 'deg');
+    copy.append(name, element('span', 'mai-sidebar-role', item.role));
+    record.card.append(material, element('span', 'mai-sidebar-shade'), element('span', 'mai-sidebar-foil'), avatar, copy);
+    row.append(record.card); mounts.set(row, record); raiseNativeIcons(record);
+    const options = {signal: record.events.signal, passive: true};
+    row.addEventListener('pointerenter', event => queueMotion(record, event), options);
+    row.addEventListener('pointermove', event => queueMotion(record, event), options);
+    for (const type of ['pointerleave', 'pointercancel', 'dragstart']) row.addEventListener(type, () => resetMotion(record), options);
+    return record;
+  }
+  function ensureSheet() {
+    if (sheet?.isConnected) return;
+    sheet = element('style'); sheet.setAttribute('data-mai-sidebar-style', token); sheet.textContent = CSS;
+    (document.head || document.body).append(sheet);
+  }
+  function sameItem(left, right) {
+    return left.roleId === right.roleId && left.name === right.name && left.role === right.role && left.characterDataUrl === right.characterDataUrl && left.backgroundDataUrl === right.backgroundDataUrl && JSON.stringify(left.bindings) === JSON.stringify(right.bindings);
+  }
+  function reconcile() {
+    scanFrame = 0; if (removed) return; ambiguityDetails=[];
+    const started = clock(); lastScanAt = started; performanceStats.scans++;
+    if (scanRoots.some(root => !root.isConnected)) invalidateRoots();
+    const fullScan = discoverRoots;
+    if (fullScan) { candidatesDirty = true; performanceStats.fullScans++; } else performanceStats.scopedScans++;
+    performanceStats.lastHeaderNodes = 0;
+    projectScope = {configured: projectConfigured, headers: 0, roots: 0, matches: 0};
+    diagnostics = {candidates: 0, semanticCandidates: 0, fallbackCandidates: 0, matched: 0, ambiguous: 0, missingLabel: 0};
+    try {
+      if (!items.length) { for (const record of [...mounts.values()]) restore(record); return; }
+      ensureSheet();
+      const candidates = candidateRows(), allMatches = [];
+      if (fullScan) {
+        rememberRoots(candidates);
+        if (!discoverRoots) cachedCandidates = cachedCandidates.filter(insideRoots);
+      }
+      for (const {row, semantic} of candidates) { const match = identify(row, items); if (match) allMatches.push({...match, semantic}); }
+      const matches = projectMatches(allMatches);
+      candidatesDirty = false;
+      const desired = new Map(), byIdentity = new Map(), titleGroups = new Map();
+      for (const match of matches) for (const identity of match.titleIdentities) {
+        if (!titleGroups.has(identity)) titleGroups.set(identity, []);
+        titleGroups.get(identity).push(match);
+      }
+      for (const match of matches) { if (!byIdentity.has(match.identity)) byIdentity.set(match.identity, []); byIdentity.get(match.identity).push(match); }
+      for (const group of byIdentity.values()) {
+        const thread = group.filter(match => match.kind === 'thread');
+        const preferred = thread.length ? thread : group.some(match => match.semantic) ? group.filter(match => match.semantic) : group;
+        const titled = preferred[0]?.kind === 'title' ? titleGroups.get(preferred[0].identity) : null;
+        if (titled?.length > 1 && !sameStableTarget(titled)) { diagnostics.ambiguous += preferred.length;if(ambiguityDetails.length<10)ambiguityDetails.push(ambiguitySummary(titled));continue; }
+        if (sameStableTarget(group)) {
+          for (const match of group) desired.set(match.row, match);
+        } else if (preferred.length === 1) {
+          const match = preferred[0]; desired.set(match.row, match);
+        } else {diagnostics.ambiguous += preferred.length;if(ambiguityDetails.length<10)ambiguityDetails.push(ambiguitySummary(preferred));}
+      }
+      for (const record of [...mounts.values()]) {
+        const match = desired.get(record.row);
+        if (!match || match.label !== record.label || !sameItem(match.item, record.item) || !record.card.isConnected) restore(record);
+      }
+      for (const [row, match] of desired) {
+        if (!mounts.has(row)) mount(match); else raiseNativeIcons(mounts.get(row));
+        markCurrent(mounts.get(row), match);
+      }
+      diagnostics.matched = mounts.size; lastError = null;
+    } catch {
+      errors++; lastError = 'sidebar-reconcile-failed';
+      for (const record of [...mounts.values()]) restore(record);
+      invalidateRoots();
+    } finally {
+      performanceStats.lastScanMs = Math.max(0, clock() - started);
+      performanceStats.maxScanMs = Math.max(performanceStats.maxScanMs, performanceStats.lastScanMs);
+    }
+  }
+  function cancelScan() {
+    if (scanFrame) cancelAnimationFrame(scanFrame); scanFrame = 0;
+    if (scanTimer) clearTimeout(scanTimer); scanTimer = 0;
+  }
+  function scheduleScan() {
+    if (removed || !items.length || document.hidden) return;
+    if (scanFrame || scanTimer) { performanceStats.coalescedRequests++; return; }
+    const queue = () => { scanTimer = 0; if (!removed && items.length && !document.hidden) scanFrame = requestAnimationFrame(reconcile); };
+    const delay = Math.max(0, SCAN_INTERVAL_MS - (clock() - lastScanAt));
+    if (delay > 0) scanTimer = setTimeout(queue, delay); else queue();
+  }
+  function watch() {
+    if (observer || !document.body) return;
+    observer = new MutationObserver(records => {
+      performanceStats.mutationBatches++; performanceStats.observedMutations += records.length;
+      let relevant = false;
+      for (const record of records) { if (relevantMutation(record)) relevant = true; else performanceStats.ignoredMutations++; }
+      if (relevant) scheduleScan();
+    });
+    observer.observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true,
+      attributeFilter: ['title', 'aria-label', 'aria-current', 'aria-selected', 'aria-hidden', 'aria-expanded', 'href', 'hidden', 'role', 'data-thread-id', 'data-conversation-id']});
+    if (document.head) {
+      headObserver = new MutationObserver(() => {
+        if (document.title !== lastTitle) { lastTitle = document.title; scheduleScan(); }
+      });
+      headObserver.observe(document.head, {subtree: true, childList: true, characterData: true});
+    }
+  }
+  const lifecycle = new AbortController();
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelScan(); resetAllMotion(); } else { candidatesDirty = true; scheduleScan(); } }, {signal: lifecycle.signal});
+  window.addEventListener('resize', () => { resetAllMotion(); invalidateRoots(); scheduleScan(); }, {signal: lifecycle.signal});
+  window.addEventListener('blur', resetAllMotion, {signal: lifecycle.signal});
+  // Route changes update the current marker inside the same navigation. The
+  // mutation observer and connectivity check invalidate roots only if the host
+  // actually replaces or extends that navigation.
+  for (const event of ['popstate', 'hashchange']) window.addEventListener(event, scheduleScan, {signal: lifecycle.signal});
+  reduced?.addEventListener?.('change', resetAllMotion, {signal: lifecycle.signal});
+  function status() { return {mounted: mounts.size, items: items.length, errors, error: lastError, diagnostics: {...diagnostics}, projectScope: {...projectScope}, ambiguityDetails:ambiguityDetails.slice(), performance: {...performanceStats, scopeCount: scanRoots.length, scanPending: Boolean(scanFrame || scanTimer)}, removed}; }
+  function update(next = []) {
+    if (removed) return status();
+    if (!Array.isArray(next)) { errors++; lastError = 'invalid-sidebar-items'; return status(); }
+    items = next.filter(item => item && typeof item.roleId === 'string' && typeof item.name === 'string' && typeof item.role === 'string' && Array.isArray(item.bindings));
+    cancelScan(); candidatesDirty = true;
+    resetAllMotion();
+    if (items.length) watch(); else { observer?.disconnect(); observer = null; headObserver?.disconnect(); headObserver = null; }
+    reconcile();
+    if (!items.length) { sheet?.remove(); sheet = null; scanRoots = []; cachedCandidates = []; cachedHeaders = []; invalidateRoots(); }
+    return status();
+  }
+  function uninstall() {
+    if (removed) return status();
+    update([]); removed = true; lifecycle.abort(); observer?.disconnect(); observer = null; headObserver?.disconnect(); headObserver = null;
+    return status();
+  }
+  return Object.freeze({update, status, uninstall});
+}
+
+  const BUILD = '0.8.0';
+  const REVISION = 'cc67553c2aefd715d031022b5b1771727261f13453a5921828dbd46f8c92ae3e';
   const BRAND_AVATAR = 'data:image/png;base64,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';
   const BRAND = 'mai-work-badges/2';
   const GLOBAL = 'MaiWorkBadgeRuntime';
   const incumbent = window[GLOBAL];
   if (incumbent) {
-    if (incumbent.brand === BRAND && incumbent.version === 2) return;
-    throw new Error('Work badge runtime global is already in use.');
+    if (incumbent.brand !== BRAND || incumbent.version !== 2 || typeof incumbent.uninstall !== 'function')
+      throw new Error('Work badge runtime global is already in use.');
+    if (incumbent.build === BUILD && incumbent.revision === REVISION) return;
+    incumbent.uninstall();
   }
   const DEFAULT = Object.freeze({width:266});
   const DEFAULT_HOLO_MATERIAL=Object.freeze({power:1.3,depth:1.75,contourBrightness:.15});
@@ -348,6 +871,7 @@ async function createBadgeHoloRenderer(canvas, assets, options = {}) {
   let stale=false, failed=false, error=null, removed=false, frame=null, tiltFrame=null, tiltState=null, drag=null;
   let watchers=null, titleObserver=null, headObserver=null, titleNode=null, lastTitle=null;
   let fontDataUrl='', font=null, fontToken=0, fontRequested=false;
+  let sidebar=null,sidebarProjectTitle=null,sidebarItems=[];
   const assetCache=new Map(),readyCards=new Map();
   let assetBytes=0,assetCacheMiss=false,assetCacheHit=false,uiCacheHit=false;
   const dismissedContexts=new Set();
@@ -569,6 +1093,33 @@ async function createBadgeHoloRenderer(canvas, assets, options = {}) {
         if(removed||token!==fontToken)return;font=loaded;document.fonts.add(loaded);
       }).catch(()=>{});
     }catch{} // Font is optional; system fallback keeps the card operable.
+  }
+  function configureSidebar(options={}) {
+    if(removed)throw new Error('Runtime was uninstalled.');
+    if(!options||typeof options!=='object'||Array.isArray(options)||!Array.isArray(options.items)||options.items.length>200)throw new TypeError('invalid-sidebar-items');
+    if(options.append!==undefined&&typeof options.append!=='boolean')throw new TypeError('invalid-sidebar-items');
+    const projectTitle=bounded(options.projectTitle,2048,true);
+    if(options.append&&sidebarProjectTitle!==null&&sidebarProjectTitle!==projectTitle)throw new TypeError('invalid-sidebar-project');
+    const items=options.items.map(item=>{
+      if(!item||typeof item!=='object'||Array.isArray(item)||!Array.isArray(item.bindings)||item.bindings.length>200)throw new TypeError('invalid-sidebar-items');
+      const roleId=bounded(item.roleId,80),name=bounded(item.name,80),role=bounded(item.role,160,true);
+      if(!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(roleId))throw new TypeError('invalid-sidebar-items');
+      const bindings=item.bindings.map(binding=>{
+        if(!binding||typeof binding!=='object'||Array.isArray(binding)||!['title','thread'].includes(binding.kind))throw new TypeError('invalid-sidebar-items');
+        return {kind:binding.kind,key:bounded(binding.key,2048)};
+      });
+      return {roleId,name,role,bindings,characterDataUrl:asset(item.characterDataUrl??'',IMAGE,4*1024*1024+128,'invalid-sidebar-art'),backgroundDataUrl:asset(item.backgroundDataUrl??'',IMAGE,4*1024*1024+128,'invalid-sidebar-art')};
+    });
+    if(new Set(items.map(item=>item.roleId)).size!==items.length)throw new TypeError('invalid-sidebar-items');
+    const merged=new Map((options.append?sidebarItems:[]).map(item=>[item.roleId,item]));
+    for(const item of items)merged.set(item.roleId,item);
+    if(merged.size>200)throw new TypeError('invalid-sidebar-items');
+    const next=[...merged.values()];
+    if(sidebar&&sidebarProjectTitle!==projectTitle){sidebar.uninstall();sidebar=null;}
+    sidebarProjectTitle=projectTitle;
+    if(!sidebar&&typeof createMaiSidebarCards==='function')sidebar=createMaiSidebarCards({projectTitle});
+    sidebar?.update(next);sidebarItems=next;
+    return status();
   }
   function syncCard(focus=false) {
     if(!ui)return;
@@ -800,7 +1351,7 @@ async function createBadgeHoloRenderer(canvas, assets, options = {}) {
   function status() {
     if(ui&&!ui.layer.isConnected)removeUI();if(recovery&&!recovery.layer.isConnected)removeRecovery();
     const snapshot={x:layout.x??Math.max(12,(window.innerWidth||1024)-(layout.width??266)-36),y:layout.y??378,width:layout.width??266};
-    return {brand:BRAND,version:2,build:BUILD,assetCacheVersion:1,assetCacheMiss,assetCacheHit,uiCacheHit,cacheStats:{entries:assetCache.size,bytes:assetBytes,retainedUI:readyCards.size+(canRetain(ui)?1:0)},material:ui?.materialState??'none',mounted:Boolean(ui),restorable:Boolean(recovery),roleId,contextKey,layout:snapshot,cardState:{...cardState},dismissed:dismissedContexts.has(dismissalKey(contextKey,roleId)),failed,stale,...(error?{error}:{})};
+    return {brand:BRAND,version:2,build:BUILD,revision:REVISION,sidebarVersion:1,sidebar:sidebar?.status()??{mounted:0,items:0},assetCacheVersion:1,assetCacheMiss,assetCacheHit,uiCacheHit,cacheStats:{entries:assetCache.size,bytes:assetBytes,retainedUI:readyCards.size+(canRetain(ui)?1:0)},material:ui?.materialState??'none',mounted:Boolean(ui),restorable:Boolean(recovery),roleId,contextKey,layout:snapshot,cardState:{...cardState},dismissed:dismissedContexts.has(dismissalKey(contextKey,roleId)),failed,stale,...(error?{error}:{})};
   }
   function configure(options={}) {
     if(removed)throw new Error('Runtime was uninstalled.');
@@ -880,8 +1431,9 @@ async function createBadgeHoloRenderer(canvas, assets, options = {}) {
   function uninstall() {
     if(removed)return;clearRestore();removeUI();for(const instance of [...readyCards.values()])destroyInstance(instance);assetCache.clear();assetBytes=0;removed=true;watchers?.abort();titleObserver?.disconnect();headObserver?.disconnect();watchers=null;
     fontToken++;if(font)document.fonts.delete(font);font=null;dismissedContexts.clear();roleId=null;contextKey=null;
+    sidebar?.uninstall();sidebar=null;sidebarItems=[];sidebarProjectTitle=null;
     if(window[GLOBAL]===api)delete window[GLOBAL];
   }
-  const api=Object.freeze({brand:BRAND,version:2,build:BUILD,configure,show,hide,restore,status,uninstall});
+  const api=Object.freeze({brand:BRAND,version:2,build:BUILD,revision:REVISION,configure,configureSidebar,show,hide,restore,status,uninstall});
   Object.defineProperty(window,GLOBAL,{value:api,configurable:true});
 })();

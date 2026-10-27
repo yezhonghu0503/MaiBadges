@@ -2,14 +2,18 @@
 (() => {
   'use strict';
   /* __HOLO_ENGINE__ */
-  const BUILD = '0.7.0';
+  /* __SIDEBAR_CARDS__ */
+  const BUILD = '0.8.0';
+  const REVISION = '__RUNTIME_REVISION__';
   const BRAND_AVATAR = '__BRAND_AVATAR_DATA__';
   const BRAND = 'mai-work-badges/2';
   const GLOBAL = 'MaiWorkBadgeRuntime';
   const incumbent = window[GLOBAL];
   if (incumbent) {
-    if (incumbent.brand === BRAND && incumbent.version === 2) return;
-    throw new Error('Work badge runtime global is already in use.');
+    if (incumbent.brand !== BRAND || incumbent.version !== 2 || typeof incumbent.uninstall !== 'function')
+      throw new Error('Work badge runtime global is already in use.');
+    if (incumbent.build === BUILD && incumbent.revision === REVISION) return;
+    incumbent.uninstall();
   }
   const DEFAULT = Object.freeze({width:266});
   const DEFAULT_HOLO_MATERIAL=Object.freeze({power:1.3,depth:1.75,contourBrightness:.15});
@@ -69,6 +73,7 @@
   let stale=false, failed=false, error=null, removed=false, frame=null, tiltFrame=null, tiltState=null, drag=null;
   let watchers=null, titleObserver=null, headObserver=null, titleNode=null, lastTitle=null;
   let fontDataUrl='', font=null, fontToken=0, fontRequested=false;
+  let sidebar=null,sidebarProjectTitle=null,sidebarItems=[];
   const assetCache=new Map(),readyCards=new Map();
   let assetBytes=0,assetCacheMiss=false,assetCacheHit=false,uiCacheHit=false;
   const dismissedContexts=new Set();
@@ -290,6 +295,33 @@
         if(removed||token!==fontToken)return;font=loaded;document.fonts.add(loaded);
       }).catch(()=>{});
     }catch{} // Font is optional; system fallback keeps the card operable.
+  }
+  function configureSidebar(options={}) {
+    if(removed)throw new Error('Runtime was uninstalled.');
+    if(!options||typeof options!=='object'||Array.isArray(options)||!Array.isArray(options.items)||options.items.length>200)throw new TypeError('invalid-sidebar-items');
+    if(options.append!==undefined&&typeof options.append!=='boolean')throw new TypeError('invalid-sidebar-items');
+    const projectTitle=bounded(options.projectTitle,2048,true);
+    if(options.append&&sidebarProjectTitle!==null&&sidebarProjectTitle!==projectTitle)throw new TypeError('invalid-sidebar-project');
+    const items=options.items.map(item=>{
+      if(!item||typeof item!=='object'||Array.isArray(item)||!Array.isArray(item.bindings)||item.bindings.length>200)throw new TypeError('invalid-sidebar-items');
+      const roleId=bounded(item.roleId,80),name=bounded(item.name,80),role=bounded(item.role,160,true);
+      if(!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(roleId))throw new TypeError('invalid-sidebar-items');
+      const bindings=item.bindings.map(binding=>{
+        if(!binding||typeof binding!=='object'||Array.isArray(binding)||!['title','thread'].includes(binding.kind))throw new TypeError('invalid-sidebar-items');
+        return {kind:binding.kind,key:bounded(binding.key,2048)};
+      });
+      return {roleId,name,role,bindings,characterDataUrl:asset(item.characterDataUrl??'',IMAGE,4*1024*1024+128,'invalid-sidebar-art'),backgroundDataUrl:asset(item.backgroundDataUrl??'',IMAGE,4*1024*1024+128,'invalid-sidebar-art')};
+    });
+    if(new Set(items.map(item=>item.roleId)).size!==items.length)throw new TypeError('invalid-sidebar-items');
+    const merged=new Map((options.append?sidebarItems:[]).map(item=>[item.roleId,item]));
+    for(const item of items)merged.set(item.roleId,item);
+    if(merged.size>200)throw new TypeError('invalid-sidebar-items');
+    const next=[...merged.values()];
+    if(sidebar&&sidebarProjectTitle!==projectTitle){sidebar.uninstall();sidebar=null;}
+    sidebarProjectTitle=projectTitle;
+    if(!sidebar&&typeof createMaiSidebarCards==='function')sidebar=createMaiSidebarCards({projectTitle});
+    sidebar?.update(next);sidebarItems=next;
+    return status();
   }
   function syncCard(focus=false) {
     if(!ui)return;
@@ -521,7 +553,7 @@
   function status() {
     if(ui&&!ui.layer.isConnected)removeUI();if(recovery&&!recovery.layer.isConnected)removeRecovery();
     const snapshot={x:layout.x??Math.max(12,(window.innerWidth||1024)-(layout.width??266)-36),y:layout.y??378,width:layout.width??266};
-    return {brand:BRAND,version:2,build:BUILD,assetCacheVersion:1,assetCacheMiss,assetCacheHit,uiCacheHit,cacheStats:{entries:assetCache.size,bytes:assetBytes,retainedUI:readyCards.size+(canRetain(ui)?1:0)},material:ui?.materialState??'none',mounted:Boolean(ui),restorable:Boolean(recovery),roleId,contextKey,layout:snapshot,cardState:{...cardState},dismissed:dismissedContexts.has(dismissalKey(contextKey,roleId)),failed,stale,...(error?{error}:{})};
+    return {brand:BRAND,version:2,build:BUILD,revision:REVISION,sidebarVersion:1,sidebar:sidebar?.status()??{mounted:0,items:0},assetCacheVersion:1,assetCacheMiss,assetCacheHit,uiCacheHit,cacheStats:{entries:assetCache.size,bytes:assetBytes,retainedUI:readyCards.size+(canRetain(ui)?1:0)},material:ui?.materialState??'none',mounted:Boolean(ui),restorable:Boolean(recovery),roleId,contextKey,layout:snapshot,cardState:{...cardState},dismissed:dismissedContexts.has(dismissalKey(contextKey,roleId)),failed,stale,...(error?{error}:{})};
   }
   function configure(options={}) {
     if(removed)throw new Error('Runtime was uninstalled.');
@@ -601,8 +633,9 @@
   function uninstall() {
     if(removed)return;clearRestore();removeUI();for(const instance of [...readyCards.values()])destroyInstance(instance);assetCache.clear();assetBytes=0;removed=true;watchers?.abort();titleObserver?.disconnect();headObserver?.disconnect();watchers=null;
     fontToken++;if(font)document.fonts.delete(font);font=null;dismissedContexts.clear();roleId=null;contextKey=null;
+    sidebar?.uninstall();sidebar=null;sidebarItems=[];sidebarProjectTitle=null;
     if(window[GLOBAL]===api)delete window[GLOBAL];
   }
-  const api=Object.freeze({brand:BRAND,version:2,build:BUILD,configure,show,hide,restore,status,uninstall});
+  const api=Object.freeze({brand:BRAND,version:2,build:BUILD,revision:REVISION,configure,configureSidebar,show,hide,restore,status,uninstall});
   Object.defineProperty(window,GLOBAL,{value:api,configurable:true});
 })();
