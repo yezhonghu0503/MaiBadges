@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MaiBadges · 独立侧栏预览</title>
+<style>
+  :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;color-scheme:light dark;--page:#f7f8fa;--surface:#fff;--ink:#20242c;--muted:#5e6877;--rule:#dce0e6;--accent:#175fd5;--hover:#e8ecf2;--selection:#d6e5ff;--sidebar-width:280px;background:var(--page);color:var(--ink)}
+  @media(prefers-color-scheme:dark){:root{--page:#18191d;--surface:#202228;--ink:#eceef3;--muted:#a7afbc;--rule:#383d47;--accent:#8bb7ff;--hover:#2d323b;--selection:#25354e}}
+  *{box-sizing:border-box}body{margin:0;min-height:100vh}::selection{background:var(--selection);color:var(--ink)}button,input,select,textarea{font:inherit;color:inherit}button,select{min-height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);padding:7px 11px}button{cursor:pointer}button:hover{background:var(--hover)}button:disabled{opacity:.55;cursor:default}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .layout{display:flex;align-items:flex-start;gap:32px;padding:24px}.sidebar{width:min(var(--sidebar-width),calc(100vw - 48px));flex:none;background:var(--surface);padding:12px;border-radius:12px}.project-heading{display:flex;align-items:center;width:100%;text-align:left;font-weight:650;border:0;padding:7px 9px;margin-bottom:9px}.project-heading svg{margin-left:auto}.chat-row{display:flex;align-items:center;gap:8px;width:100%;height:42px;margin-bottom:4px;border:0;text-align:left;padding:8px;overflow:hidden}.native-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.native-state{display:flex;align-items:center;gap:4px;flex:none}.chat-row[aria-current=page]{background:var(--hover)}.recent-heading{font-size:12px;color:var(--muted);font-weight:600;margin:24px 9px 7px}
+  main{flex:1;min-width:0;max-width:680px}h1{font-size:24px;line-height:1.3;letter-spacing:-.025em;margin:3px 0 12px}p{font-size:14px;line-height:1.75;margin:0 0 16px;color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.actions button{font-size:13px}.field{display:block;font-size:13px;font-weight:600;margin:20px 0 7px}.width-select{width:180px}textarea{display:block;width:100%;min-height:82px;resize:vertical;border:1px solid var(--rule);border-radius:8px;background:var(--surface);padding:10px;font-size:14px;line-height:1.6;caret-color:var(--accent)}textarea::placeholder{color:var(--muted)}article{min-height:64px;overflow-wrap:anywhere;margin:16px 0;padding:12px 0;border-block:1px solid var(--rule);font-size:14px;line-height:1.6;color:var(--muted)}.result{color:var(--ink)}pre{font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);margin:0;scrollbar-width:thin;scrollbar-color:var(--muted) var(--surface)}.note{font-size:12px;margin-top:20px}
+  @media(max-width:760px){.layout{flex-wrap:wrap;gap:24px;padding:20px}.sidebar{max-width:calc(100vw - 40px)}main{flex-basis:100%}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" data-sidebar aria-label="示例聊天侧栏">
+    <nav aria-label="示例聊天">
+      <section id="sample-project">
+        <button class="project-heading" type="button" aria-expanded="true"><span>Example project</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></button>
+        <div id="project-rows"></div>
+      </section>
+      <h2 class="recent-heading">未绑定的示例</h2>
+      <div id="recent-rows"></div>
+    </nav>
+  </aside>
+  <main>
+    <h1>独立侧栏预览</h1>
+    <p>这里运行发布包的侧栏实现，使用原创几何素材和虚构聊天行。点击、键盘焦点、定时图标与状态仍由本页的原生按钮负责。</p>
+    <label class="field" for="sidebar-width">侧栏宽度</label>
+    <select class="width-select" id="sidebar-width"><option value="280">280 px</option><option value="420">420 px</option></select>
+    <div class="actions">
+      <button type="button" id="toggle-binding" aria-pressed="true">移除装饰</button>
+      <button type="button" id="toggle-duplicate" aria-pressed="false">添加同名聊天</button>
+      <button type="button" id="toggle-state">切换任务状态</button>
+      <button type="button" id="stream">模拟正文更新</button>
+    </div>
+    <p class="result" id="native-result" aria-live="polite">点击左侧示例，检查原生事件。</p>
+    <label class="field" for="editor">输入区</label>
+    <textarea id="editor" placeholder="在这里输入，侧栏不应因输入持续扫描。"></textarea>
+    <article id="stream-output" aria-label="虚构正文">虚构正文更新区。此区域和输入区不参与侧栏匹配。</article>
+    <pre id="sidebar-status" aria-label="侧栏诊断"></pre>
+    <p class="note">同名行指向不同目标时，对应装饰会撤回。此页验证独立浏览器中的实现，不能代替当前桌面宿主验收；不连接真实聊天、不读写资料库。</p>
+  </main>
+</div>
+<script data-sidebar-runtime>
+/* __SIDEBAR_CARDS__ */
+</script>
+<script data-sidebar-preview>
+(() => {
+  'use strict';
+  const items = /* __SIDEBAR_PREVIEW_ITEMS__ */;
+  const controller = createMaiSidebarCards({projectTitle:'Example project'});
+  const byId = id => document.getElementById(id);
+  const projectRows = byId('project-rows');
+  const nativeRows = [];
+  let bound = true, duplicate = null, running = false, clicks = 0, reportTimer = 0;
+  function clockIcon(){
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
+    for(const [tag,attributes] of [['circle',{cx:12,cy:12,r:8}],['path',{d:'M12 7v5l3 2'}]]){
+      const node = document.createElementNS('http://www.w3.org/2000/svg',tag);
+      for(const [name,value] of Object.entries(attributes))node.setAttribute(name,String(value));
+      svg.append(node);
+    }
+    return svg;
+  }
+  function addRow(title,target,container){
+    const row = document.createElement('button');row.type = 'button';row.className = 'chat-row';
+    row.setAttribute('data-thread-id',target);row.setAttribute('aria-current','false');row.draggable = true;
+    const label = document.createElement('span');label.className = 'native-title';label.title = title;label.textContent = title;
+    const state = document.createElement('span');state.className = 'native-state';state.setAttribute('role','status');state.setAttribute('aria-label','Scheduled');state.title = 'Scheduled';state.append(clockIcon());
+    row.append(label,state);container.append(row);nativeRows.push(row);
+    row.addEventListener('click',() => {
+      clicks++;for(const candidate of nativeRows)candidate.setAttribute('aria-current',candidate===row?'page':'false');
+      document.title = title;byId('native-result').textContent = '原生点击 '+clicks+' 次 · '+title+' · '+state.getAttribute('aria-label');report();
+    });
+    return row;
+  }
+  function report(){
+    clearTimeout(reportTimer);reportTimer = setTimeout(() => {
+      const state = controller.status();
+      byId('sidebar-status').textContent = JSON.stringify({mounted:state.mounted,configured:state.items,ambiguous:state.diagnostics.ambiguous,errors:state.errors,scans:state.performance.scans,fullScans:state.performance.fullScans,scopedScans:state.performance.scopedScans,ignoredMutations:state.performance.ignoredMutations,scanPending:state.performance.scanPending},null,2);
+    },220);
+  }
+  for(const item of items)addRow(item.bindings[0].key,item.roleId+'-thread',projectRows);
+  addRow('Unbound sample','unbound-thread',byId('recent-rows'));
+  controller.update(items);report();
+  byId('toggle-binding').addEventListener('click',event => {
+    bound = !bound;controller.update(bound?items:[]);event.currentTarget.setAttribute('aria-pressed',String(bound));event.currentTarget.textContent = bound?'移除装饰':'恢复装饰';report();
+  });
+  byId('toggle-duplicate').addEventListener('click',event => {
+    if(duplicate){nativeRows.splice(nativeRows.indexOf(duplicate),1);duplicate.remove();duplicate=null;}else duplicate=addRow(items[0].bindings[0].key,'different-thread',projectRows);
+    event.currentTarget.setAttribute('aria-pressed',String(Boolean(duplicate)));event.currentTarget.textContent = duplicate?'移除同名聊天':'添加同名聊天';report();
+  });
+  byId('toggle-state').addEventListener('click',() => {
+    running = !running;for(const row of nativeRows){const state=row.querySelector('[role="status"]');state.setAttribute('aria-label',running?'Running':'Scheduled');state.title = running?'Running':'Scheduled';}report();
+  });
+  byId('sidebar-width').addEventListener('change',event => {
+    document.documentElement.style.setProperty('--sidebar-width',event.target.value+'px');window.dispatchEvent(new Event('resize'));report();
+  });
+  byId('editor').addEventListener('input',report);
+  byId('stream').addEventListener('click',event => {
+    const button=event.currentTarget;button.disabled=true;let frame=0;
+    function tick(){byId('stream-output').textContent = '虚构正文逐步更新 · '+(++frame)+'/60';if(frame<60)requestAnimationFrame(tick);else{button.disabled=false;report();}}
+    requestAnimationFrame(tick);
+  });
+  window.addEventListener('pagehide',() => {clearTimeout(reportTimer);controller.uninstall();},{once:true});
+})();
+</script>
+</body>
+</html>
