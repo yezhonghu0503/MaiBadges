@@ -31,8 +31,8 @@ LAUNCHER_BUNDLE_VERSION = '3'
 LAUNCHER_ICON_NAME = 'MaiBadges.icns'
 OWNER = 'maibadges-local-package/1'
 RUNTIME_FILES = ('loader/main.py', 'loader/control.py', 'loader/transport.py', 'loader/probe.js',
-                 'backend/__init__.py', 'backend/main.py', 'backend/registry.py', 'backend/mcp_server.py', 'backend/holo_assets.py',
-                 'runtime/renderer.js', 'ui/manager.html', 'assets/demo.png', 'assets/brand.png',
+                 'backend/__init__.py', 'backend/main.py', 'backend/registry.py', 'backend/mcp_server.py', 'backend/holo_assets.py', 'backend/sidebar_assets.py',
+                 'runtime/renderer.js', 'runtime/sidebar.js', 'ui/manager.html', 'assets/demo.png', 'assets/brand.png',
                  'assets/BricolageGrotesque.ttf', 'licenses/Bricolage-OFL.txt', 'licenses/Holo-Card-MIT.txt')
 TEAM_LAYER_FILES = ('manifest.json', 'character.png', 'background.png', 'ui.png',
                     'ui-live.png', 'structure.png', 'contour-alpha.png')

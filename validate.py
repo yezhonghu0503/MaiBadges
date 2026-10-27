@@ -38,7 +38,7 @@ def main():
     node=shutil.which('node')
     if not node: raise RuntimeError('开发验证需要 Node.js；用户安装运行只需 Python 3.9+。')
     syntax_count=0
-    for path in [PLUGIN/'ui/manager.js',PLUGIN/'runtime/renderer.js',PLUGIN/'runtime/holo-engine.js',PLUGIN/'loader/probe.js',PLUGIN/'ui/preview-fixture.js']:
+    for path in [PLUGIN/'ui/manager.js',PLUGIN/'runtime/renderer.js',PLUGIN/'runtime/sidebar.js',PLUGIN/'runtime/holo-engine.js',PLUGIN/'loader/probe.js',PLUGIN/'ui/preview-fixture.js']:
         run([node,'--check',str(path)])
         syntax_count+=1
     html=(PLUGIN/'ui/manager.html').read_text(encoding='utf-8')
@@ -61,6 +61,13 @@ def main():
     for inline_script in badge_scripts:
         run([node,'--check'],input=inline_script)
         syntax_count+=1
+    sidebar_preview=(PLUGIN/'previews/sidebar-preview.html').read_text(encoding='utf-8')
+    assert 'sidebar' in sidebar_preview and '__SIDEBAR_' not in sidebar_preview
+    sidebar_scripts=re.findall(r'<script[^>]*>\s*(.*?)</script>',sidebar_preview,re.S)
+    assert sidebar_scripts
+    for inline_script in sidebar_scripts:
+        run([node,'--check'],input=inline_script)
+        syntax_count+=1
     report['checks'].append({'name':'JavaScript syntax (including built UI and read-only preview)','count':syntax_count,'passed':True})
     python_count=0
     for directory in [ROOT/'tests',PLUGIN/'tests',PLUGIN/'loader/tests']:
@@ -68,7 +75,7 @@ def main():
         count=int(re.search(r'Ran (\d+) tests?',output).group(1));python_count+=count
         report['checks'].append({'name':str(directory.relative_to(ROOT)),'count':count,'passed':True})
     node_count=0
-    for path in [ROOT/'tests/check-manager.mjs',PLUGIN/'tests/check-renderer.mjs',ROOT/'tests/check-holo-engine.mjs']:
+    for path in [ROOT/'tests/check-manager.mjs',PLUGIN/'tests/check-renderer.mjs',PLUGIN/'tests/check-sidebar.mjs',ROOT/'tests/check-holo-engine.mjs']:
         command=[node,'--test','--test-reporter=tap',str(path)] if path.name=='check-holo-engine.mjs' else [node,str(path)]
         output=run(command)
         count=len(re.findall(r'^ok \d+ - ',output,re.M));node_count+=count
