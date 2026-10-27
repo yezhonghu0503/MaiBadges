@@ -130,6 +130,30 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(registry.resolve({'title':'Max（运营总监）'})['bio'],'用户保存的资料')
             self.assertTrue(registry.prefs_get('86c36ad8-3e65-4efb-a523-13ab3882e2b8')['roles']['max']['flipped'])
 
+    def test_upgrade_adds_sidebar_runtime_without_changing_custom_avatar_or_binding(self):
+        import base64
+        self.prepare()
+        avatar = 'data:image/png;base64,' + base64.b64encode(
+            (self.package / 'plugins/work-badges/assets/brand.png').read_bytes()).decode('ascii')
+        with Registry(self.state) as registry:
+            saved = registry.upsert_role({'id': 'upgrade-example', 'name': 'Nova',
+                'role': 'Example operator', 'avatarDataUrl': avatar}, registry.snapshot()['version'])
+            registry.bind('upgrade-example', 'title', 'Upgrade example', 'Upgrade example', saved['version'])
+            before = registry.snapshot()
+            image_id = next(role['imageId'] for role in before['roles'] if role['id'] == 'upgrade-example')
+            before_avatar = registry.avatar_data(image_id)
+        # The old public runtime did not ship either sidebar component.
+        for relative in ('backend/sidebar_assets.py', 'runtime/sidebar.js'):
+            (self.state / 'runtime' / relative).unlink()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(setup.check_install(self.state, self.package)['runtimeFilesCurrent'])
+        self.prepare()
+        with Registry(self.state) as registry:
+            self.assertEqual(registry.snapshot(), before)
+            self.assertEqual(registry.avatar_data(image_id), before_avatar)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertTrue(setup.check_install(self.state, self.package)['runtimeFilesCurrent'])
+
     def test_existing_catalog_fields_and_other_plugins_are_preserved(self):
         path=self.project/'.agents/plugins/marketplace.json';path.parent.mkdir(parents=True)
         previous={'name':'my-catalog','custom':{'keep':True},'plugins':[{'name':'other','source':{'source':'local','path':'./other'}}]}
