@@ -14,7 +14,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent
 PLUGIN = ROOT / 'plugins/work-badges'
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 PUBLIC_ASSETS = {'demo.png', 'brand.png', 'maibadges.png', 'maibadges.icns', 'BricolageGrotesque.ttf', 'demo.svg', 'brand.svg', 'maibadges.svg', 'ASSET_PROVENANCE.json'}
 DEMO_FILES = {'manifest.json', 'character.png', 'background.png', 'ui.png', 'ui-live.png',
               'structure.png', 'contour-alpha.png', 'character.svg', 'background.svg', 'ui.svg',
@@ -62,7 +62,8 @@ def distributable(path):
         return path.suffix in ('.py', '.js', '.mjs', '.html')
     if section == 'previews':
         return len(plugin_parts) == 2 and plugin_parts[1] in (
-            'manager-preview.html', 'holo-badge-preview.html', 'badge-preview.template.html')
+            'manager-preview.html', 'holo-badge-preview.html', 'badge-preview.template.html',
+            'sidebar-preview.html', 'sidebar-preview.template.html')
     return section == 'skills' and path.suffix == '.md'
 
 
@@ -76,8 +77,14 @@ def build(archive=False):
         runtime = runtime_template.read_text(encoding='utf-8')
         if runtime.count('/* __HOLO_ENGINE__ */') != 1:
             raise ValueError('工牌材质入口占位符不符。')
-        (PLUGIN / 'runtime/renderer.js').write_text(
-            runtime.replace('/* __HOLO_ENGINE__ */', engine).replace('__BRAND_AVATAR_DATA__', brand), encoding='utf-8')
+        sidebar_path = PLUGIN / 'runtime/sidebar.js'
+        if runtime.count('/* __SIDEBAR_CARDS__ */') != 1 or not sidebar_path.is_file():
+            raise ValueError('缺少侧边栏运行资源，请使用完整安装包。')
+        runtime = runtime.replace('/* __HOLO_ENGINE__ */', engine).replace(
+            '/* __SIDEBAR_CARDS__ */', sidebar_path.read_text(encoding='utf-8')).replace(
+            '__BRAND_AVATAR_DATA__', brand)
+        runtime = runtime.replace('__RUNTIME_REVISION__', hashlib.sha256(runtime.encode('utf-8')).hexdigest())
+        (PLUGIN / 'runtime/renderer.js').write_text(runtime, encoding='utf-8')
     template = (PLUGIN / 'ui/manager.template.html').read_text(encoding='utf-8')
     script = (PLUGIN / 'ui/manager.js').read_text(encoding='utf-8')
     if template.count('__FONT_DATA__') != 1 or template.count('/* __MANAGER_JS__ */') != 1:
@@ -88,7 +95,8 @@ def build(archive=False):
     html = template.replace('__FONT_DATA__', font).replace('__BRAND_AVATAR_DATA__', brand).replace(
         '/* __MANAGER_JS__ */', '(() => {\n' + engine + '\n' + script + '\n})();')
     (PLUGIN / 'ui/manager.html').write_text(html, encoding='utf-8')
-    for filename, entry in [('build_preview.py', 'build_preview'), ('build_badge_preview.py', 'build_badge_preview')]:
+    for filename, entry in [('build_preview.py', 'build_preview'), ('build_badge_preview.py', 'build_badge_preview'),
+                            ('build_sidebar_preview.py', 'build_sidebar_preview')]:
         builder = PLUGIN / 'ui' / filename
         if builder.is_file():
             runpy.run_path(str(builder))[entry]()

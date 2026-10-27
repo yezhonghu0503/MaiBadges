@@ -44,12 +44,14 @@
   const restoreButton = document.getElementById('restore-badge');
   const preferences = new Map();
   const sentAssets = new Set();
-  const avatars = {[sample.miloSourceId]: {avatarDataUrl:sample.avatarDataUrl,foregroundDataUrl:sample.foregroundDataUrl,contourDataUrl:sample.contourDataUrl,holoAssets:sample.holoAssets},...sample.avatars};
-  let selectedId = sample.profiles.some(role => role.id === 'max') ? 'max' : 'milo';
+  const sourceImageId = sample.sourceImageId ?? sample.miloSourceId;
+  const avatars = Object.assign(Object.create(null),sourceImageId ? {[sourceImageId]: {avatarDataUrl:sample.avatarDataUrl,foregroundDataUrl:sample.foregroundDataUrl,contourDataUrl:sample.contourDataUrl,holoAssets:sample.holoAssets}} : {},sample.avatars);
+  const availableProfiles = sample.profiles.filter(role => role.enabled !== false);
+  let selectedId = availableProfiles[0]?.id ?? null;
   let statusFrame = null;
   let positionOwned = false;
   let starting = true;
-  function currentRole() { return sample.profiles.find(role => role.id === selectedId); }
+  function currentRole() { return availableProfiles.find(role => role.id === selectedId); }
   function defaultLayout() {
     const width = window.innerHeight < 640 && window.innerWidth < 760 ? 220 : 266;
     const narrow = window.innerWidth < 760;
@@ -70,6 +72,7 @@
   }
   function showRole({resetPosition=false}={}) {
     const role = currentRole();
+    if (!role) { errorOutput.textContent = '没有可用的示例角色。'; restoreButton.disabled = true; document.getElementById('reset-badge').disabled = true; return; }
     const saved = preferences.get(selectedId);
     const artwork = avatars[role.imageId] || {};
     const assetKey = /^[a-f0-9]{64}$/.test(role.imageId || '') ? role.imageId : null;
@@ -84,7 +87,7 @@
     renderStatus();
     scheduleStatus();
   }
-  for (const role of sample.profiles) {
+  for (const role of availableProfiles) {
     const option = document.createElement('option');
     option.value = role.id; option.textContent = role.name + ' · ' + role.role;
     roleSelect.append(option);

@@ -611,20 +611,98 @@ class LoaderContracts(unittest.TestCase):
         self.avatar_fixture(1, 'milo')
         session = self.session()
         current = runtime(assetCacheVersion=1)
-        connection = Connection([probe(current=current), result(current), probe(current=current), result(current)])
+        connection = Connection([probe(current=current), result(current), probe(current=current),
+                                 probe(current=current), result(current)])
+        now = [0.0]
         first_url = 'data:image/png;base64,' + base64.b64encode(TINY_PNG).decode('ascii')
         second_url = 'data:image/png;base64,' + base64.b64encode(TINY_PNG + b'new').decode('ascii')
         layers = lambda url: {'holoAssets': {name: url for name in ('character', 'background', 'ui', 'structure')}}
-        with mock.patch.object(loader, 'portrait_foreground', side_effect=[layers(first_url), layers(second_url)]):
+        with mock.patch.object(loader, 'portrait_foreground', side_effect=[layers(first_url), layers(second_url)]), \
+             mock.patch.object(loader.time, 'monotonic', side_effect=lambda: now[0]):
             session.step(connection, page())
             old = self.layer_file.stat()
             self.layer_file.write_bytes(TINY_PNG[:-1] + b'x')
             os.utime(self.layer_file, ns=(old.st_atime_ns, old.st_mtime_ns))
+            # Material checks are independent of the fast context probe. The
+            # same mounted identity stays cached until the bounded deadline.
+            now[0] = loader.ASSET_REVALIDATION_INTERVAL - .01
             self.assertEqual(session.step(connection, page()), 'mounted')
-        first, changed = (show_argument(connection.calls[index]) for index in (1, 3))
+            self.assertEqual(len(connection.calls), 3)
+            now[0] = loader.ASSET_REVALIDATION_INTERVAL
+            self.assertEqual(session.step(connection, page()), 'mounted')
+        first, changed = (show_argument(connection.calls[index]) for index in (1, 4))
         self.assertNotEqual(first['assetKey'], changed['assetKey'])
         self.assertIn('holoAssets', changed)
         self.assertEqual(len(self.registry.avatar_reads), 2)
+
+    def test_fast_idle_probes_do_not_repeat_full_snapshot_or_material_tree_scan(self):
+        self.cached_assets()
+        self.avatar_fixture(1, 'milo')
+        session = self.session()
+        current = runtime(assetCacheVersion=1)
+        connection = Connection([probe(current=current), result(current)]
+                                + [probe(current=current) for _ in range(8)])
+        now = [0.0]
+        with mock.patch.object(loader.time, 'monotonic', side_effect=lambda: now[0]), \
+             mock.patch.object(loader, 'portrait_foreground', return_value={}), \
+             mock.patch.object(self.registry, 'snapshot', wraps=self.registry.snapshot) as snapshots, \
+             mock.patch.object(loader, 'asset_signature', wraps=loader.asset_signature) as tree_checks:
+            self.assertEqual(session.step(connection, page()), 'mounted')
+            initial_checks = tree_checks.call_count
+            self.assertEqual(initial_checks, 2)  # Before packet read and after it.
+            for tick in range(1, 8):
+                now[0] = tick * loader.PROBE_INTERVAL
+                self.assertEqual(session.step(connection, page()), 'mounted')
+            self.assertEqual(snapshots.call_count, 1)
+            self.assertEqual(tree_checks.call_count, initial_checks)
+            self.assertEqual(session.diagnostics['assetSignatureCacheHits'], 7)
+            now[0] = loader.ASSET_REVALIDATION_INTERVAL
+            self.assertEqual(session.step(connection, page()), 'mounted')
+            self.assertEqual(snapshots.call_count, 2)
+            self.assertEqual(tree_checks.call_count, initial_checks + 1)
+        self.assertEqual(len(self.registry.avatar_reads), 1)
+        self.assertEqual(len(connection.calls), 10)
+
+    def test_version_change_refreshes_snapshot_and_profile_without_waiting_for_deadline(self):
+        self.cached_assets()
+        self.avatar_fixture(1, 'milo')
+        session = self.session()
+        current = runtime(assetCacheVersion=1)
+        connection = Connection([probe(current=current), result(current), probe(current=current), result(current)])
+        now = [0.0]
+        with mock.patch.object(loader.time, 'monotonic', side_effect=lambda: now[0]), \
+             mock.patch.object(loader, 'portrait_foreground', return_value={}), \
+             mock.patch.object(self.registry, 'snapshot', wraps=self.registry.snapshot) as snapshots:
+            session.step(connection, page())
+            self.registry.roles['milo']['bio'] = 'New acceptance criteria'
+            self.registry.version += 1
+            now[0] = loader.PROBE_INTERVAL
+            self.assertEqual(session.step(connection, page()), 'mounted')
+            self.assertEqual(snapshots.call_count, 2)
+        self.assertEqual(show_argument(connection.calls[-1])['role']['bio'], 'New acceptance criteria')
+        self.assertEqual(session.cached_snapshot['version'], self.registry.version)
+        self.assertEqual(len(self.registry.avatar_reads), 1)
+
+    def test_reconnection_revalidates_cached_material_and_full_snapshot(self):
+        self.cached_assets()
+        self.avatar_fixture(1, 'milo')
+        session = self.session()
+        current = runtime(assetCacheVersion=1)
+        first = Connection([probe(current=current), result(current)])
+        second = Connection([probe(current=current), result(current)])
+        with mock.patch.object(loader.time, 'monotonic', return_value=0), \
+             mock.patch.object(loader, 'portrait_foreground', return_value={}), \
+             mock.patch.object(self.registry, 'snapshot', wraps=self.registry.snapshot) as snapshots, \
+             mock.patch.object(loader, 'asset_signature', wraps=loader.asset_signature) as tree_checks:
+            session.step(first, page())
+            initial_checks = tree_checks.call_count
+            session.connection_changed()
+            self.assertEqual(len(session.asset_signatures), 0)
+            self.assertEqual(session.step(second, page('new')), 'mounted')
+            self.assertEqual(snapshots.call_count, 2)
+            self.assertEqual(tree_checks.call_count, initial_checks + 1)
+        self.assertEqual(len(self.registry.avatar_reads), 1)
+        self.assertIn('avatarDataUrl', show_argument(second.calls[-1]))
 
     def test_tampered_avatar_is_not_reused_or_cached_and_repair_is_seen(self):
         self.cached_assets()
@@ -784,6 +862,40 @@ class LoaderContracts(unittest.TestCase):
         metadata = registry.snapshot()['contexts'][0]
         self.assertEqual(metadata['contextKey'], 'title:' + TITLE)
         self.assertIsNone(metadata['threadKey'])
+
+    def test_real_registry_version_observes_another_connection_edit_on_next_fast_probe(self):
+        root = self.state / 'registry'
+        registry = loader.registry_module().Registry(root)
+        self.addCleanup(registry.close)
+        bound = registry.bind('milo', 'title', TITLE, TITLE, registry.snapshot()['version'])
+        writer = loader.registry_module().Registry(root)
+        self.addCleanup(writer.close)
+        session = loader.BadgeSession(registry, SCOPE, '/* mock renderer */', 'rev', '')
+        connection = Connection([probe(current=runtime()), result(runtime()), probe(current=runtime()),
+                                 probe(current=runtime()), result(runtime())])
+        now = [0.0]
+        with mock.patch.object(loader.time, 'monotonic', side_effect=lambda: now[0]), \
+             mock.patch.object(registry, 'snapshot', wraps=registry.snapshot) as snapshots:
+            session.step(connection, page())
+            now[0] = loader.PROBE_INTERVAL
+            session.step(connection, page())
+            self.assertEqual(snapshots.call_count, 1)
+            writer.upsert_role({'id': 'milo', 'bio': 'Saved by the management page'}, bound['version'])
+            now[0] += loader.PROBE_INTERVAL
+            self.assertEqual(session.step(connection, page()), 'mounted')
+            self.assertEqual(snapshots.call_count, 2)
+        self.assertEqual(show_argument(connection.calls[-1])['role']['bio'], 'Saved by the management page')
+        self.assertEqual(session.diagnostics['versionChecks'], 3)
+
+    def test_cached_snapshot_does_not_swallow_registry_version_errors(self):
+        session = self.session()
+        first = Connection([probe(current=runtime()), result(runtime())])
+        session.step(first, page())
+        self.registry._version = mock.Mock(side_effect=loader.sqlite3.OperationalError('fixture unavailable'))
+        blocked = Connection([probe(current=runtime())])
+        with self.assertRaises(loader.sqlite3.OperationalError):
+            session.step(blocked, page())
+        self.assertEqual(len(blocked.calls), 1)
 
     def test_runtime_resources_are_read_locally_without_executing_the_source(self):
         plugin = self.state / 'plugin'

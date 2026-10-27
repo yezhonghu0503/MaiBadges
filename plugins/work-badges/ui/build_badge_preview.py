@@ -49,7 +49,8 @@ def sample_data() -> dict:
         'foregroundDataUrl': layers.get('foregroundDataUrl', ''),
         'contourDataUrl': layers.get('contourDataUrl', ''),
         'fontDataUrl': _data_url(PLUGIN / 'assets' / 'BricolageGrotesque.ttf', 'font/ttf'),
-        'miloSourceId': image_id,
+        'sourceImageId': image_id,
+        'miloSourceId': image_id,  # Legacy preview-fixture key; never a role selector.
         'holoAssets': layers.get('holoAssets', {}),
         'avatars': {image_id: {'avatarDataUrl': original, **layers}},
     }

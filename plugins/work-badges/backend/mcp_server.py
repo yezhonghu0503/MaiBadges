@@ -10,7 +10,7 @@ from .registry import Registry, RegistryError, ValidationError
 from .holo_assets import display_layers
 
 
-RESOURCE_URI = "ui://work-badges/manager-v0.7.0.html"
+RESOURCE_URI = "ui://work-badges/manager-v0.8.0.html"
 RESOURCE_MIME = "text/html;profile=mcp-app"
 UI_PATH = Path(__file__).resolve().parent.parent / "ui" / "manager.html"
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
@@ -145,7 +145,7 @@ class Server:
                 raise RpcError(-32602, "缺少 MCP 协议版本。")
             self.initialized = True
             return {"protocolVersion": requested if requested in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0],
-                    "serverInfo": {"name": "work-badges", "version": "0.7.0", "title": "MaiBadges"},
+                    "serverInfo": {"name": "work-badges", "version": "0.8.0", "title": "MaiBadges"},
                     "capabilities": {"tools": {}, "resources": {}},
                     "instructions": "只管理工牌和用户明确指定的聊天绑定，不会连接、启动或控制桌面应用。资料修改必须使用最新 expectedVersion。"}
         if method == "ping":

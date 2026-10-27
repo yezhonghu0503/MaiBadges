@@ -235,7 +235,7 @@ class McpTests(RegistryFixture):
         self.assertEqual(len(responses), 4)
         self.assertEqual(responses[0]["error"]["code"], -32002)
         self.assertEqual(responses[1]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(responses[1]["result"]["serverInfo"]["version"], "0.7.0")
+        self.assertEqual(responses[1]["result"]["serverInfo"]["version"], "0.8.0")
         tools = responses[2]["result"]["tools"]
         self.assertEqual({tool["name"] for tool in tools}, {"work_badges_" + name for name in ("open", "snapshot", "save", "enable", "bind", "unbind", "avatar")})
         opener = next(tool for tool in tools if tool["name"] == "work_badges_open")

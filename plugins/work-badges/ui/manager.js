@@ -105,7 +105,7 @@
     async function connect(){
       if(!ready)ready=(async()=>{
         try{
-          const initialized=await rpc('ui/initialize',{appInfo:{name:'work-badges-manager',version:'0.7.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
+          const initialized=await rpc('ui/initialize',{appInfo:{name:'work-badges-manager',version:'0.8.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
           theme.updateHost(initialized?.hostContext);
           notify('ui/notifications/initialized',{});
         }catch(error){

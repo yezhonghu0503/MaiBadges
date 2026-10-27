@@ -1,6 +1,6 @@
 {
-  "version": "0.7.0",
-  "validatedAt": "2026-10-21T04:20:47.373878+00:00",
+  "version": "0.8.0",
+  "validatedAt": "2026-10-27T07:37:11.354969+00:00",
   "mode": "offline-only",
   "connectedToChatGPT": false,
   "installedByAgent": false,
@@ -13,17 +13,17 @@
     },
     {
       "name": "JavaScript syntax (including built UI and read-only preview)",
-      "count": 9,
+      "count": 12,
       "passed": true
     },
     {
       "name": "tests",
-      "count": 77,
+      "count": 78,
       "passed": true
     },
     {
       "name": "plugins/work-badges/tests",
-      "count": 74,
+      "count": 97,
       "passed": true
     },
     {
@@ -38,7 +38,12 @@
     },
     {
       "name": "plugins/work-badges/tests/check-renderer.mjs",
-      "count": 53,
+      "count": 57,
+      "passed": true
+    },
+    {
+      "name": "plugins/work-badges/tests/check-sidebar.mjs",
+      "count": 37,
       "passed": true
     },
     {
@@ -63,7 +68,7 @@
       "passed": true
     }
   ],
-  "pythonTests": 181,
-  "nodeContracts": 100,
+  "pythonTests": 205,
+  "nodeContracts": 141,
   "passed": true
 }

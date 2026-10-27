@@ -63,7 +63,7 @@ function environment(options={}){
   document=new Element('#document');document.fonts=fonts;
   document.documentElement=new Element('html');document.head=new Element('head');document.body=new Element('body');
   document.append(document.documentElement);document.documentElement.append(document.head,document.body);
-  const title=new Element('title');title.textContent='Milo';document.head.append(title);
+  const title=new Element('title');title.textContent='Guide';document.head.append(title);
   Object.defineProperty(document,'title',{get(){return document.head.querySelector('title')?.textContent||'';},set(value){document.head.querySelector('title').textContent=value;}});
   document.createElement=tag=>{const element=new Element(tag);if(tag==='canvas'&&options.materialFactory)element.getContext=()=>({});return element;};document.createElementNS=(_namespace,tag)=>new Element(tag);
   const window=new Target();window.innerWidth=1200;window.innerHeight=900;window.visualViewport=null;
@@ -73,7 +73,7 @@ function environment(options={}){
   class ResizeObserver{constructor(callback){this.callback=callback;this.targets=new Set();resizeObservers.push(this);}observe(target){this.targets.add(target);}disconnect(){this.targets.clear();}}
   class FontFace{constructor(name,data){this.family=name;this.data=data;}load(){fontLoads.push(this);return Promise.resolve(this);}}
   class CustomEvent{constructor(type,options={}){this.type=type;Object.assign(this,options);}}
-  const sandbox={window,document,MutationObserver,ResizeObserver,FontFace,CustomEvent,AbortController,console,__badgeMaterialFactory:options.materialFactory,
+  const sandbox={window,document,MutationObserver,ResizeObserver,FontFace,CustomEvent,AbortController,console,__badgeMaterialFactory:options.materialFactory,__sidebarFactory:options.sidebarFactory,
     matchMedia:()=>motion,requestAnimationFrame:fn=>{const id=nextFrame++;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id),
     getComputedStyle:element=>({position:element.style.position||(element.className.split(' ').some(value=>value==='panel'||value==='face')?'absolute':element.className.split(' ').includes('flip-surface')?'relative':'static'),pointerEvents:element.style.pointerEvents||'auto'})};
   const script=options.script??source;
@@ -83,8 +83,8 @@ function environment(options={}){
   return {window,document,context,api:window.MaiWorkBadgeRuntime,frames,motion,mutationObservers,resizeObservers,fontLoads,fonts,events,flushFrames,stepFrames,
     layer:()=>document.body.children[0],root:()=>document.body.children[0]?.shadowRoot};
 }
-function profile(name='Milo'){return {id:name.toLowerCase(),name,chineseName:name==='Milo'?'麦浪':'',role:'互动运营',bio:'把每件小事认真做完。',serial:`${name.toUpperCase()} · 001`,duties:[['查待办','核对发布单和素材。']],approval:'经你确认后再发。',enabled:true,imageId:null};}
-function input(name='Milo',contextKey='conversation:a',extra={}){return {role:profile(name),avatarDataUrl:'',layout:{x:500,y:180,width:266},cardState:{flipped:false,collapsed:false},contextKey,...extra};}
+function profile(name='Guide'){return {id:name.toLowerCase(),name,chineseName:name==='Guide'?'向导':'',role:'示例职责',bio:'把每件小事认真做完。',serial:`${name.toUpperCase()} · 001`,duties:[['查待办','核对发布单和素材。']],approval:'经你确认后再发。',enabled:true,imageId:null};}
+function input(name='Guide',contextKey='conversation:a',extra={}){return {role:profile(name),avatarDataUrl:'',layout:{x:500,y:180,width:266},cardState:{flipped:false,collapsed:false},contextKey,...extra};}
 function event(target,type,options={}){const value={type,bubbles:true,...options};target.dispatchEvent(value);return value;}
 function active(root,selector){return root.querySelectorAll(selector).find(element=>!element.disabled)||null;}
 
@@ -98,27 +98,27 @@ check('one overlay, cream-card data, and unchanged show preserve DOM and focus',
   const env=environment();assert.equal(env.api.show(input()).mounted,true);env.flushFrames();
   const layer=env.layer(),front=env.root().querySelector('.front');front.focus();
   env.api.show(input());assert.equal(env.layer(),layer);assert.equal(env.root().activeElement,front);assert.equal(env.document.body.children.length,1);
-  assert.match(env.root().textContent,/Milo/);assert.match(front.getAttribute('aria-describedby'),/work-badge-bio/);
+  assert.match(env.root().textContent,/Guide/);assert.match(front.getAttribute('aria-describedby'),/work-badge-bio/);
   assert.ok(env.mutationObservers.flatMap(observer=>observer.watches).every(watch=>['TITLE','HEAD'].includes(watch.target.nodeName)));
 });
-check('Max, Maxie, Maxin are distinct explicit profiles and empty avatars never reuse Milo',()=>{
+check('Maker, MakerPlus, MakerAlt are distinct explicit profiles and empty avatars never reuse Guide',()=>{
   const env=environment();env.api.show(input());
-  for(const name of ['Max','Maxie','Maxin']){env.api.show(input(name,`conversation:${name}`));assert.equal(env.api.status().roleId,name.toLowerCase());assert.equal(env.root().querySelector('.english').textContent,name);assert.equal(env.root().querySelectorAll('.portrait').length,0);assert.equal(env.root().querySelector('.initial').textContent,'M');assert.doesNotMatch(env.root().textContent,/Milo/);assert.equal(env.document.body.children.length,1);}
+  for(const name of ['Maker','MakerPlus','MakerAlt']){env.api.show(input(name,`conversation:${name}`));assert.equal(env.api.status().roleId,name.toLowerCase());assert.equal(env.root().querySelector('.english').textContent,name);assert.equal(env.root().querySelectorAll('.portrait').length,0);assert.equal(env.root().querySelector('.initial').textContent,'M');assert.doesNotMatch(env.root().textContent,/Guide/);assert.equal(env.document.body.children.length,1);}
 });
 check('unknown/disabled contexts clear old identity while retaining own layout',()=>{
   const env=environment();env.api.show(input());const before=env.api.status().layout;
-  env.api.hide({contextKey:'conversation:unknown',reason:'unbound'});assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().roleId,'milo');assert.equal(env.document.body.children.length,0);assert.deepEqual(env.api.status().layout,before);
-  env.api.show(input('Max','conversation:max',{role:{...profile('Max'),enabled:false}}));assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().roleId,'max');
+  env.api.hide({contextKey:'conversation:unknown',reason:'unbound'});assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().roleId,'guide');assert.equal(env.document.body.children.length,0);assert.deepEqual(env.api.status().layout,before);
+  env.api.show(input('Maker','conversation:maker',{role:{...profile('Maker'),enabled:false}}));assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().roleId,'maker');
 });
 check('title text changes hide immediately, mark stale, and require an explicit show',()=>{
-  const env=environment();env.api.show(input());env.document.title='Maxie（资深分析师）';
-  const state=env.api.status();assert.equal(state.mounted,false);assert.equal(state.roleId,'milo');assert.equal(state.stale,true);assert.equal(state.contextKey,'conversation:a');
+  const env=environment();env.api.show(input());env.document.title='MakerPlus（资深分析师）';
+  const state=env.api.status();assert.equal(state.mounted,false);assert.equal(state.roleId,'guide');assert.equal(state.stale,true);assert.equal(state.contextKey,'conversation:a');
   assert.ok(env.events.some(value=>value.type==='mai-work-badges-context-stale'));
-  env.api.show(input('Maxie','conversation:analysis'));assert.equal(env.api.status().stale,false);assert.equal(env.api.status().roleId,'maxie');
+  env.api.show(input('MakerPlus','conversation:analysis'));assert.equal(env.api.status().stale,false);assert.equal(env.api.status().roleId,'makerplus');
 });
 check('title replacement and navigation events also clear the prior identity',()=>{
-  const env=environment();env.api.show(input());const replacement=env.document.createElement('title');replacement.textContent='Maxin';env.document.head.replaceChildren(replacement);assert.equal(env.api.status().stale,true);assert.equal(env.api.status().mounted,false);
-  env.api.show(input('Maxin','conversation:design'));event(env.window,'popstate');assert.equal(env.api.status().stale,true);assert.equal(env.api.status().mounted,false);
+  const env=environment();env.api.show(input());const replacement=env.document.createElement('title');replacement.textContent='MakerAlt';env.document.head.replaceChildren(replacement);assert.equal(env.api.status().stale,true);assert.equal(env.api.status().mounted,false);
+  env.api.show(input('MakerAlt','conversation:design'));event(env.window,'popstate');assert.equal(env.api.status().stale,true);assert.equal(env.api.status().mounted,false);
   env.api.show(input());event(env.window,'hashchange');assert.equal(env.api.status().mounted,false);
 });
 check('front/back, Escape, collapse/expand update state immediately and transfer focus',()=>{
@@ -160,13 +160,13 @@ check('keyboard movement is immediate, bounded, and prevents host scrolling',()=
 });
 check('dismissal stays with one context and does not uninstall the controller',()=>{
   const env=environment();let hostClicks=0;env.document.body.addEventListener('click',()=>hostClicks++);env.api.show(input());event(active(env.root(),'.close'),'click');assert.equal(hostClicks,0);assert.equal(env.api.status().dismissed,true);assert.equal(env.api.status().mounted,false);assert.ok(env.window.MaiWorkBadgeRuntime);
-  assert.equal(env.api.show(input()).mounted,false);env.api.show(input('Max','conversation:b'));assert.equal(env.api.status().mounted,true);assert.equal(env.api.status().dismissed,false);
+  assert.equal(env.api.show(input()).mounted,false);env.api.show(input('Maker','conversation:b'));assert.equal(env.api.status().mounted,true);assert.equal(env.api.status().dismissed,false);
   assert.equal(env.api.show(input()).mounted,false);assert.equal(env.api.status().dismissed,true);
-  env.api.show(input('Maxie','conversation:a'));assert.equal(env.api.status().mounted,true);assert.equal(env.api.status().dismissed,false);assert.equal(env.api.status().roleId,'maxie');
-  assert.equal(env.api.show(input()).mounted,false);assert.equal(env.api.status().roleId,'milo');assert.equal(env.api.status().dismissed,true);
+  env.api.show(input('MakerPlus','conversation:a'));assert.equal(env.api.status().mounted,true);assert.equal(env.api.status().dismissed,false);assert.equal(env.api.status().roleId,'makerplus');
+  assert.equal(env.api.show(input()).mounted,false);assert.equal(env.api.status().roleId,'guide');assert.equal(env.api.status().dismissed,true);
 });
 check('close offers an original-position restore without changing layout, face, or binding identity',()=>{
-  const env=environment();let hostClicks=0;env.document.body.addEventListener('click',()=>hostClicks++);env.api.show(input('Milo','conversation:a',{cardState:{flipped:true,collapsed:false}}));env.flushFrames();
+  const env=environment();let hostClicks=0;env.document.body.addEventListener('click',()=>hostClicks++);env.api.show(input('Guide','conversation:a',{cardState:{flipped:true,collapsed:false}}));env.flushFrames();
   const before=env.api.status();event(active(env.root(),'.close'),'click');const closed=env.api.status();
   assert.equal(closed.mounted,false);assert.equal(closed.restorable,true);assert.equal(closed.dismissed,true);assert.equal(env.document.body.children.length,1);assert.equal(env.root().querySelector('.front'),null);assert.equal(env.root().querySelector('.restore').textContent,'显示工牌');
   assert.equal(env.root().querySelector('.recovery').style.left,before.layout.x+'px');assert.equal(env.root().querySelector('.recovery').style.top,before.layout.y+'px');assert.equal(env.root().activeElement,env.root().querySelector('.restore'));
@@ -175,28 +175,28 @@ check('close offers an original-position restore without changing layout, face, 
 });
 check('restore controls disappear on unbound, unknown, disabled, stale, invalid and replaced identities',()=>{
   const env=environment();
-  for(const reason of ['unbound','unknown-context','stale']){env.api.show(input('Milo','conversation:'+reason));event(active(env.root(),'.close'),'click');assert.equal(env.api.status().restorable,true);env.api.hide({contextKey:'conversation:unknown',reason});assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().restorable,false);assert.equal(env.document.body.children.length,0);assert.equal(env.api.restore().mounted,false);}
-  env.api.show(input('Max'));event(active(env.root(),'.close'),'click');env.api.show(input('Max','conversation:a',{role:{...profile('Max'),enabled:false}}));assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
-  env.api.show(input('Maxie'));event(active(env.root(),'.close'),'click');env.document.title='Maxin';assert.equal(env.api.status().restorable,false);assert.equal(env.api.status().stale,true);assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
-  env.api.show(input('Maxin','conversation:navigation'));event(active(env.root(),'.close'),'click');event(env.window,'popstate');assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);
-  env.api.show(input('Maxin','conversation:invalid'));event(active(env.root(),'.close'),'click');env.api.show(input('Max','conversation:bad',{role:{id:'bad'}}));assert.equal(env.api.status().failed,true);assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);
-  env.api.show(input('Milo','conversation:unbound'));assert.equal(env.api.status().restorable,true);const oldRestore=env.root().querySelector('.restore');env.api.show(input('Maxie','conversation:b'));event(oldRestore,'click');assert.equal(env.api.status().restorable,false);assert.equal(env.api.status().roleId,'maxie');assert.equal(env.document.body.children.length,1);assert.equal(env.root().querySelector('.restore'),null);
+  for(const reason of ['unbound','unknown-context','stale']){env.api.show(input('Guide','conversation:'+reason));event(active(env.root(),'.close'),'click');assert.equal(env.api.status().restorable,true);env.api.hide({contextKey:'conversation:unknown',reason});assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().restorable,false);assert.equal(env.document.body.children.length,0);assert.equal(env.api.restore().mounted,false);}
+  env.api.show(input('Maker'));event(active(env.root(),'.close'),'click');env.api.show(input('Maker','conversation:a',{role:{...profile('Maker'),enabled:false}}));assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
+  env.api.show(input('MakerPlus'));event(active(env.root(),'.close'),'click');env.document.title='MakerAlt';assert.equal(env.api.status().restorable,false);assert.equal(env.api.status().stale,true);assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
+  env.api.show(input('MakerAlt','conversation:navigation'));event(active(env.root(),'.close'),'click');event(env.window,'popstate');assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);
+  env.api.show(input('MakerAlt','conversation:invalid'));event(active(env.root(),'.close'),'click');env.api.show(input('Maker','conversation:bad',{role:{id:'bad'}}));assert.equal(env.api.status().failed,true);assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);
+  env.api.show(input('Guide','conversation:unbound'));assert.equal(env.api.status().restorable,true);const oldRestore=env.root().querySelector('.restore');env.api.show(input('MakerPlus','conversation:b'));event(oldRestore,'click');assert.equal(env.api.status().restorable,false);assert.equal(env.api.status().roleId,'makerplus');assert.equal(env.document.body.children.length,1);assert.equal(env.root().querySelector('.restore'),null);
   event(active(env.root(),'.close'),'click');env.api.hide({reason:'unknown-context'});assert.equal(env.api.status().restorable,false);assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
 });
 check('an explicit update refreshes a dismissed profile without opening or resurrecting it',()=>{
   const env=environment();env.api.show(input());event(active(env.root(),'.close'),'click');
-  const changed={...profile(),name:'Milo 新名',bio:'更新后的职责说明',duties:[['新职责','采用最新资料。']]};
-  env.api.show(input('Milo','conversation:a',{role:changed}));assert.equal(env.api.status().dismissed,true);assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().restorable,true);assert.doesNotMatch(env.root().querySelector('.restore').textContent,/Milo/);
-  event(env.root().querySelector('.restore'),'click');assert.equal(env.root().querySelector('.english').textContent,'Milo 新名');assert.match(env.root().querySelector('.bio').textContent,/更新后的/);assert.match(env.root().querySelector('.duties').textContent,/采用最新资料/);
+  const changed={...profile(),name:'Guide 新名',bio:'更新后的职责说明',duties:[['新职责','采用最新资料。']]};
+  env.api.show(input('Guide','conversation:a',{role:changed}));assert.equal(env.api.status().dismissed,true);assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().restorable,true);assert.doesNotMatch(env.root().querySelector('.restore').textContent,/Guide/);
+  event(env.root().querySelector('.restore'),'click');assert.equal(env.root().querySelector('.english').textContent,'Guide 新名');assert.match(env.root().querySelector('.bio').textContent,/更新后的/);assert.match(env.root().querySelector('.duties').textContent,/采用最新资料/);
 });
 check('restoring clears only the current context-role dismissal and uninstall clears recovery ownership',()=>{
-  const env=environment();env.api.show(input());event(active(env.root(),'.close'),'click');env.api.show(input('Max','conversation:b'));event(active(env.root(),'.close'),'click');
-  env.api.restore();assert.equal(env.api.status().roleId,'max');assert.equal(env.api.status().dismissed,false);env.api.show(input());assert.equal(env.api.status().dismissed,true);assert.equal(env.api.status().restorable,true);
+  const env=environment();env.api.show(input());event(active(env.root(),'.close'),'click');env.api.show(input('Maker','conversation:b'));event(active(env.root(),'.close'),'click');
+  env.api.restore();assert.equal(env.api.status().roleId,'maker');assert.equal(env.api.status().dismissed,false);env.api.show(input());assert.equal(env.api.status().dismissed,true);assert.equal(env.api.status().restorable,true);
   const staleButton=env.root().querySelector('.restore');env.api.uninstall();assert.equal(env.document.body.children.length,0);assert.equal(env.frames.size,0);assert.equal(env.window.listenerCount(),0);assert.equal(env.api.status().restorable,false);assert.equal(env.window.MaiWorkBadgeRuntime,undefined);event(staleButton,'click');assert.equal(env.document.body.children.length,0);assert.throws(()=>env.api.restore(),/uninstalled/);
 });
 check('an old avatar cannot fail a newer role, while current async failures are fatal',()=>{
-  const env=environment(),avatar='data:image/png;base64,QUJDRA==';env.api.show(input('Milo','conversation:a',{avatarDataUrl:avatar}));const old=env.root().querySelector('.portrait');
-  env.api.show(input('Maxie','conversation:b',{avatarDataUrl:avatar}));event(old,'error');assert.equal(env.api.status().failed,false);assert.equal(env.api.status().roleId,'maxie');
+  const env=environment(),avatar='data:image/png;base64,QUJDRA==';env.api.show(input('Guide','conversation:a',{avatarDataUrl:avatar}));const old=env.root().querySelector('.portrait');
+  env.api.show(input('MakerPlus','conversation:b',{avatarDataUrl:avatar}));event(old,'error');assert.equal(env.api.status().failed,false);assert.equal(env.api.status().roleId,'makerplus');
   event(env.root().querySelector('.portrait'),'error');assert.equal(env.api.status().failed,true);assert.equal(env.api.status().error,'portrait-load-failed');assert.equal(env.api.status().mounted,false);
 });
 check('external removal is detected through own reference and can be shown again',()=>{
@@ -204,7 +204,7 @@ check('external removal is detected through own reference and can be shown again
 });
 check('layout whitelist clamps narrow viewports and tiny viewport controls fail safely',()=>{
   const env=environment();env.window.innerWidth=252;env.window.innerHeight=320;
-  env.api.show(input('Milo','conversation:a',{layout:{x:99999,y:99999,width:320,chat:'unused'}}));
+  env.api.show(input('Guide','conversation:a',{layout:{x:99999,y:99999,width:320,chat:'unused'}}));
   const state=env.api.status();assert.equal(state.layout.width,228);assert.equal(state.layout.x,12);assert.equal(state.layout.y,12);assert.equal(state.layout.chat,undefined);
   env.window.innerHeight=80;event(env.root().querySelector('.front'),'click');assert.equal(env.api.status().failed,true);assert.equal(env.api.status().error,'viewport-too-small');assert.equal(env.document.body.children.length,0);
 });
@@ -281,7 +281,7 @@ check('opaque portrait framing fills its photo while cutout coordinates and coll
 });
 check('holographic layers keep scenery, aligned cutout and contour separate from readable identity',()=>{
   const env=environment(),avatar='data:image/png;base64,QUJDRA==',foreground='data:image/png;base64,RUZHSA==',contour='data:image/png;base64,SUprTA==';
-  env.api.show(input('Milo','conversation:holo',{avatarDataUrl:avatar,foregroundDataUrl:foreground,contourDataUrl:contour}));env.flushFrames();
+  env.api.show(input('Guide','conversation:holo',{avatarDataUrl:avatar,foregroundDataUrl:foreground,contourDataUrl:contour}));env.flushFrames();
   const root=env.root(),photo=root.querySelector('.photo'),portrait=photo.querySelector('.portrait'),line=photo.querySelector('.contour');
   assert.equal(photo.getAttribute('data-layered'),'');assert.ok(photo.querySelector('.scene'));assert.equal(portrait.src,foreground);assert.equal(root.querySelector('.mini-avatar').querySelector('.portrait').src,avatar);
   assert.equal(line.parentNode,photo.querySelector('.avatar'));assert.equal(line.style['mask-image'],`url(${contour})`);assert.equal(line.style['-webkit-mask-image'],`url(${contour})`);
@@ -296,15 +296,15 @@ check('holographic layers keep scenery, aligned cutout and contour separate from
 });
 check('complete avatars are never repeated as scenery and foreground assets refresh a mounted or dismissed card',()=>{
   const env=environment(),avatar='data:image/png;base64,QUJDRA==',foreground='data:image/png;base64,RUZHSA==';
-  env.api.show(input('Milo','conversation:holo',{avatarDataUrl:avatar}));const old=env.layer();assert.equal(env.root().querySelector('.scene'),null);assert.equal(env.root().querySelector('.photo').querySelector('.portrait').src,avatar);
-  env.api.show(input('Milo','conversation:holo',{avatarDataUrl:avatar,foregroundDataUrl:foreground}));assert.notEqual(env.layer(),old);assert.equal(env.root().querySelector('.photo').querySelector('.portrait').src,foreground);assert.ok(env.root().querySelector('.scene'));
-  event(active(env.root(),'.close'),'click');env.api.show(input('Milo','conversation:holo',{avatarDataUrl:avatar,foregroundDataUrl:'data:image/png;base64,SUprTA=='}));assert.equal(env.api.status().dismissed,true);event(env.root().querySelector('.restore'),'click');assert.equal(env.root().querySelector('.photo').querySelector('.portrait').src,'data:image/png;base64,SUprTA==');
+  env.api.show(input('Guide','conversation:holo',{avatarDataUrl:avatar}));const old=env.layer();assert.equal(env.root().querySelector('.scene'),null);assert.equal(env.root().querySelector('.photo').querySelector('.portrait').src,avatar);
+  env.api.show(input('Guide','conversation:holo',{avatarDataUrl:avatar,foregroundDataUrl:foreground}));assert.notEqual(env.layer(),old);assert.equal(env.root().querySelector('.photo').querySelector('.portrait').src,foreground);assert.ok(env.root().querySelector('.scene'));
+  event(active(env.root(),'.close'),'click');env.api.show(input('Guide','conversation:holo',{avatarDataUrl:avatar,foregroundDataUrl:'data:image/png;base64,SUprTA=='}));assert.equal(env.api.status().dismissed,true);event(env.root().querySelector('.restore'),'click');assert.equal(env.root().querySelector('.photo').querySelector('.portrait').src,'data:image/png;base64,SUprTA==');
 });
 check('layer assets reject external, non-PNG, malformed, oversized and orphan contour inputs',()=>{
   const bad=['https://example.com/image.png','data:image/svg+xml;base64,QUJDRA==','data:image/jpeg;base64,QUJDRA==','data:image/png;base64,not base64!','data:image/png;base64,'+'A'.repeat(5*1024*1024)];
-  for(const value of bad){const env=environment();env.api.show(input());const state=env.api.show(input('Milo','conversation:bad',{foregroundDataUrl:value}));assert.equal(state.failed,true);assert.equal(state.error,'invalid-foreground');assert.equal(state.mounted,false);assert.equal(env.document.body.children.length,0);}
-  for(const value of bad){const env=environment();env.api.show(input());const state=env.api.show(input('Milo','conversation:bad',{foregroundDataUrl:'data:image/png;base64,QUJDRA==',contourDataUrl:value}));assert.equal(state.failed,true);assert.equal(state.error,'invalid-contour');assert.equal(state.mounted,false);}
-  const env=environment();const state=env.api.show(input('Milo','conversation:bad',{contourDataUrl:'data:image/png;base64,QUJDRA=='}));assert.equal(state.error,'invalid-contour');assert.equal(state.mounted,false);
+  for(const value of bad){const env=environment();env.api.show(input());const state=env.api.show(input('Guide','conversation:bad',{foregroundDataUrl:value}));assert.equal(state.failed,true);assert.equal(state.error,'invalid-foreground');assert.equal(state.mounted,false);assert.equal(env.document.body.children.length,0);}
+  for(const value of bad){const env=environment();env.api.show(input());const state=env.api.show(input('Guide','conversation:bad',{foregroundDataUrl:'data:image/png;base64,QUJDRA==',contourDataUrl:value}));assert.equal(state.failed,true);assert.equal(state.error,'invalid-contour');assert.equal(state.mounted,false);}
+  const env=environment();const state=env.api.show(input('Guide','conversation:bad',{contourDataUrl:'data:image/png;base64,QUJDRA=='}));assert.equal(state.error,'invalid-contour');assert.equal(state.mounted,false);
 });
 check('holographic hover is neutral under reduced motion, touch, drag, collapse, hide and uninstall',()=>{
   const env=environment();env.api.show(input());env.flushFrames();const shell=env.root().querySelector('.shell'),stage=env.root().querySelector('.stage');
@@ -318,7 +318,7 @@ check('holographic hover is neutral under reduced motion, touch, drag, collapse,
 });
 check('short visual viewports constrain the stage without moving controls into the content scroller',()=>{
   const env=environment(),visual=env.motion;Object.assign(visual,{width:252,height:320,offsetLeft:0,offsetTop:20});env.window.visualViewport=visual;
-  env.api.show(input('Milo','conversation:short',{layout:{x:999,y:999,width:320},role:{...profile(),duties:Array.from({length:30},(_,index)=>['职责 '+index,'完整保留的长说明。'.repeat(30)])}}));env.flushFrames();
+  env.api.show(input('Guide','conversation:short',{layout:{x:999,y:999,width:320},role:{...profile(),duties:Array.from({length:30},(_,index)=>['职责 '+index,'完整保留的长说明。'.repeat(30)])}}));env.flushFrames();
   const root=env.root(),panel=root.querySelector('.panel'),header=root.querySelector('.card-header');
   assert.equal(panel.style['--available-height'],'296px');assert.equal(panel.style.maxHeight,'296px');assert.equal(root.querySelectorAll('.duty').length,30);assert.equal(header.parentNode,root.querySelector('.front-face'));assert.notEqual(header.parentNode,root.querySelector('.back-content'));
   visual.height=180;event(visual,'resize');env.flushFrames();assert.equal(panel.style['--available-height'],'156px');assert.equal(panel.style.maxHeight,'156px');
@@ -327,12 +327,12 @@ check('short visual viewports constrain the stage without moving controls into t
 check('reduced motion cancels hover animation and malformed profiles clear old content',()=>{
   const env=environment();env.api.show(input());env.flushFrames();const stage=env.root().querySelector('.stage');event(stage,'pointermove',{pointerType:'mouse',clientX:200,clientY:200});assert.equal(env.frames.size,1);env.motion.matches=true;event(env.motion,'change');assert.equal(env.frames.size,0);
   event(stage,'pointermove',{pointerType:'mouse',clientX:200,clientY:200});assert.equal(env.frames.size,0);
-  const state=env.api.show(input('Max','conversation:bad',{role:{id:'bad',name:'Max'}}));assert.equal(state.failed,true);assert.equal(state.mounted,false);assert.equal(state.roleId,'milo');assert.equal(env.document.body.children.length,0);
+  const state=env.api.show(input('Maker','conversation:bad',{role:{id:'bad',name:'Maker'}}));assert.equal(state.failed,true);assert.equal(state.mounted,false);assert.equal(state.roleId,'guide');assert.equal(env.document.body.children.length,0);
 });
 check('registry limits use Unicode codepoints and permit persisted empty role/duty labels',()=>{
-  const env=environment(),role={...profile('Max'),name:'🦊'.repeat(80),chineseName:'麦'.repeat(80),role:'',bio:'🦊'.repeat(4000),serial:'S'.repeat(80),approval:'同'.repeat(2000),duties:Array.from({length:30},()=>['','🦊'.repeat(4000)])};
-  const state=env.api.show(input('Max','conversation:limits',{role}));assert.equal(state.mounted,true);assert.equal(state.failed,false);assert.equal(env.root().querySelectorAll('.duty').length,30);
-  assert.equal(env.api.show(input('Max','conversation:bad-limits',{role:{...role,bio:'🦊'.repeat(4001)}})).failed,true);
+  const env=environment(),role={...profile('Maker'),name:'🦊'.repeat(80),chineseName:'麦'.repeat(80),role:'',bio:'🦊'.repeat(4000),serial:'S'.repeat(80),approval:'同'.repeat(2000),duties:Array.from({length:30},()=>['','🦊'.repeat(4000)])};
+  const state=env.api.show(input('Maker','conversation:limits',{role}));assert.equal(state.mounted,true);assert.equal(state.failed,false);assert.equal(env.root().querySelectorAll('.duty').length,30);
+  assert.equal(env.api.show(input('Maker','conversation:bad-limits',{role:{...role,bio:'🦊'.repeat(4001)}})).failed,true);
 });
 check('uninstall cleans own nodes, queued frames, captures, observers and global',()=>{
   const env=environment();env.api.show(input());const handle=env.root().querySelector('.drag');event(handle,'pointerdown',{button:0,pointerId:1,clientX:0,clientY:0});event(handle,'pointermove',{pointerId:1,clientX:3,clientY:5});
@@ -342,13 +342,56 @@ check('uninstall cleans own nodes, queued frames, captures, observers and global
 check('reloading the same script preserves the current runtime and its single overlay',()=>{
   const env=environment();env.api.show(input());const instance=env.api,layer=env.layer();vm.runInContext(source,env.context);assert.equal(env.window.MaiWorkBadgeRuntime,instance);assert.equal(env.layer(),layer);assert.equal(env.document.body.children.length,1);
 });
+check('a new runtime revision uninstalls the old overlay and exposes one fresh controller',()=>{
+  const env=environment();env.api.show(input());const previous=env.api;
+  const revised=source.replace(/const REVISION = '[^']*';/,"const REVISION = 'fixture-next-revision';");
+  vm.runInContext(revised,env.context);const current=env.window.MaiWorkBadgeRuntime;
+  assert.notEqual(current,previous);assert.equal(current.revision,'fixture-next-revision');assert.equal(env.document.body.children.length,0);assert.equal(env.frames.size,0);
+  assert.throws(()=>previous.show(input()),/uninstalled/);current.show(input());assert.equal(env.document.body.children.length,1);current.uninstall();
+});
+
+function sidebarHarness(){
+  const controllers=[];
+  const script=readFileSync(new URL('../runtime/renderer.template.js',import.meta.url),'utf8').replace('/* __HOLO_ENGINE__ */','').replace('/* __SIDEBAR_CARDS__ */','const createMaiSidebarCards=__sidebarFactory;');
+  const env=environment({script,sidebarFactory:options=>{
+    const controller={options,updates:[],removed:0,items:[],update(items){this.items=items;this.updates.push(items);},status(){return {mounted:this.items.length,items:this.items.length};},uninstall(){this.removed++;this.items=[];}};
+    controllers.push(controller);return controller;
+  }});
+  const entry=(roleId='demo',extra={})=>({roleId,name:'Example',role:'Sample role',bindings:[{kind:'title',key:'Example chat'}],characterDataUrl:'data:image/png;base64,QUJDRA==',backgroundDataUrl:'',...extra});
+  return {env,controllers,entry};
+}
+check('sidebar configuration validates local art and accepts any valid custom role without private fonts',()=>{
+  const {env,controllers,entry}=sidebarHarness(),large='data:image/png;base64,'+'A'.repeat(4*1024*1024);
+  const state=env.api.configureSidebar({projectTitle:'Example project',items:[entry('custom_role',{characterDataUrl:large,extra:'ignored'})]});
+  assert.equal(state.sidebarVersion,1);assert.equal(state.sidebar.items,1);assert.equal(controllers.length,1);assert.equal(controllers[0].options.projectTitle,'Example project');
+  assert.deepEqual(Object.keys(controllers[0].items[0]).sort(),['backgroundDataUrl','bindings','characterDataUrl','name','role','roleId']);assert.equal(controllers[0].items[0].characterDataUrl,large);
+  assert.equal(env.document.body.children.length,0);assert.equal(env.fontLoads.length,0);assert.equal(Object.hasOwn(controllers[0].options,'signatureForRole'),false);
+  const before=controllers[0].items;
+  for(const options of [null,[],{items:null},{items:Array(201).fill(entry())},{items:[null]},{items:[entry('Bad ID')]},{items:[entry('demo',{bindings:[null]})]},{items:[entry('demo',{bindings:[{kind:'implicit',key:'Example'}]})]},{items:[entry('demo',{characterDataUrl:'https://example.com/image.png'})]},{items:[entry('demo',{backgroundDataUrl:large+'A'.repeat(200)})]},{items:[entry(),entry()]},{items:[],append:'true'}])assert.throws(()=>env.api.configureSidebar(options),/invalid-(sidebar|profile)/);
+  assert.equal(controllers[0].items,before,'invalid batches do not mutate applied sidebar items');env.api.uninstall();
+});
+check('sidebar append updates repeated role IDs while replace and empty batches clear prior items',()=>{
+  const {env,controllers,entry}=sidebarHarness();env.api.configureSidebar({items:[entry('demo'),entry('second')],projectTitle:'Example project'});
+  env.api.configureSidebar({items:[entry('demo',{name:'Updated'}),entry('third')],projectTitle:'Example project',append:true});
+  const controller=controllers[0];assert.deepEqual(Array.from(controller.items,item=>item.roleId),['demo','second','third']);assert.equal(controller.items[0].name,'Updated');
+  env.api.configureSidebar({items:[],projectTitle:'Example project',append:true});assert.equal(controller.items.length,3);
+  assert.throws(()=>env.api.configureSidebar({items:[entry('fourth')],projectTitle:'Other project',append:true}),/invalid-sidebar-project/);assert.equal(controller.items.length,3);
+  env.api.configureSidebar({items:[entry('replacement')],projectTitle:'Example project'});assert.deepEqual(Array.from(controller.items,item=>item.roleId),['replacement']);
+  env.api.configureSidebar({items:[],projectTitle:'Example project'});assert.equal(controller.items.length,0);env.api.uninstall();assert.equal(controller.removed,1);
+});
+check('sidebar merged capacity is bounded and changing scope restores the prior controller',()=>{
+  const {env,controllers,entry}=sidebarHarness();env.api.configureSidebar({items:Array.from({length:200},(_,index)=>entry('role_'+index)),projectTitle:'First'});
+  assert.throws(()=>env.api.configureSidebar({items:[entry('over_limit')],projectTitle:'First',append:true}),/invalid-sidebar-items/);assert.equal(controllers[0].items.length,200);
+  env.api.configureSidebar({items:[entry('new_role')],projectTitle:'Second'});assert.equal(controllers[0].removed,1);assert.equal(controllers.length,2);assert.equal(controllers[1].options.projectTitle,'Second');assert.equal(controllers[1].items.length,1);
+  env.api.uninstall();env.api.uninstall();assert.equal(controllers[1].removed,1);assert.throws(()=>env.api.configureSidebar({items:[]}),/uninstalled/);
+});
 
 {
   const env=environment();env.api.configure({fontDataUrl:'data:font/ttf;base64,QUJDRA=='});env.api.show(input());
   await Promise.resolve();await Promise.resolve();assert.equal(env.fontLoads.length,1);assert.equal(env.fonts.size,1);
-  env.api.hide({contextKey:'conversation:b'});env.api.show(input('Maxie','conversation:b'));assert.equal(env.fontLoads.length,1);
+  env.api.hide({contextKey:'conversation:b'});env.api.show(input('MakerPlus','conversation:b'));assert.equal(env.fontLoads.length,1);
   env.api.uninstall();assert.equal(env.fonts.size,0);
-  const pending=environment();pending.api.show(input('Milo','conversation:a',{fontDataUrl:'data:font/ttf;base64,QUJDRA=='}));pending.api.uninstall();
+  const pending=environment();pending.api.show(input('Guide','conversation:a',{fontDataUrl:'data:font/ttf;base64,QUJDRA=='}));pending.api.uninstall();
   await Promise.resolve();await Promise.resolve();assert.equal(pending.fonts.size,0);
   checks++;process.stdout.write(`ok ${checks} - font ownership is cached and late promises cannot outlive uninstall\n`);
 }
@@ -359,12 +402,12 @@ const fourPlanes=()=>Object.fromEntries(['character','background','ui','structur
 async function checkAsync(name,fn){await fn();checks++;process.stdout.write(`ok ${checks} - ${name}\n`);}
 check('material assets must be complete local PNGs and invalid bundles clear the prior identity',()=>{
   for(const bad of [{},[],{...fourPlanes(),background:'https://example.com/a.png'},{...fourPlanes(),structure:''}]){
-    const env=environment();env.api.show(input());assert.equal(env.api.show(input('Milo','conversation:a',{holoAssets:bad})).error,'invalid-holo-assets');assert.equal(env.api.status().mounted,false);
+    const env=environment();env.api.show(input());assert.equal(env.api.show(input('Guide','conversation:a',{holoAssets:bad})).error,'invalid-holo-assets');assert.equal(env.api.status().mounted,false);
   }
 });
 await checkAsync('WebGL readiness is reported only after success; original DOM identity and API version stay intact',async()=>{
   let disposed=0;const calls=[];const env=environment({materialFactory:async(_canvas,assets,options)=>{assert.deepEqual(Object.keys(assets),['character','background','ui','structure']);assert.equal(options.depth,1.75);return {setView:v=>calls.push(v),dispose:()=>disposed++};}});
-  const status=env.api.show(input('Milo','conversation:a',{holoAssets:fourPlanes()}));assert.equal(status.material,'loading');assert.equal(status.build,'0.7.0');await Promise.resolve();await Promise.resolve();assert.equal(env.api.status().material,'webgl');assert.match(env.root().querySelector('.front').textContent,/Milo/);assert.equal(env.root().querySelector('.front-face').getAttribute('data-material'),'webgl');env.api.hide();assert.equal(disposed,1);assert.equal(env.api.status().mounted,false);
+  const status=env.api.show(input('Guide','conversation:a',{holoAssets:fourPlanes()}));assert.equal(status.material,'loading');assert.equal(status.build,JSON.parse(readFileSync(new URL('../plugin.json',import.meta.url),'utf8')).version);await Promise.resolve();await Promise.resolve();assert.equal(env.api.status().material,'webgl');assert.match(env.root().querySelector('.front').textContent,/Guide/);assert.equal(env.root().querySelector('.front-face').getAttribute('data-material'),'webgl');env.api.hide();assert.equal(disposed,1);assert.equal(env.api.status().mounted,false);
 });
 await checkAsync('portrait material tuning matches original image content, independent of role name',async()=>{
   const demoImage=JSON.parse(readFileSync(new URL('../assets/holo/demo/manifest.json',import.meta.url),'utf8')).sourceImageId;
@@ -377,18 +420,18 @@ await checkAsync('portrait material tuning matches original image content, indep
 });
 await checkAsync('invalid image identifiers are rejected before material creation',async()=>{
   let creations=0;const env=environment({materialFactory:async()=>{creations++;return {setView(){},dispose(){}};}});
-  const status=env.api.show(input('Max','conversation:invalid-image',{role:{...profile('Max'),imageId:'toString'},holoAssets:fourPlanes()}));
+  const status=env.api.show(input('Maker','conversation:invalid-image',{role:{...profile('Maker'),imageId:'toString'},holoAssets:fourPlanes()}));
   await Promise.resolve();await Promise.resolve();assert.equal(status.failed,true);assert.equal(status.error,'invalid-profile');assert.equal(status.mounted,false);assert.equal(creations,0);
 });
 await checkAsync('late GPU initialization is aborted and disposed without resurrecting a closed card',async()=>{
-  let resolve,options,disposed=0;const env=environment({materialFactory:(_canvas,_assets,opts)=>{options=opts;return new Promise(r=>resolve=r);}});env.api.show(input('Milo','conversation:a',{holoAssets:fourPlanes()}));env.api.hide();assert.equal(options.signal.aborted,true);resolve({setView(){},dispose(){disposed++;}});await Promise.resolve();await Promise.resolve();assert.equal(disposed,1);assert.equal(env.api.status().mounted,false);assert.equal(env.document.body.children.length,0);
+  let resolve,options,disposed=0;const env=environment({materialFactory:(_canvas,_assets,opts)=>{options=opts;return new Promise(r=>resolve=r);}});env.api.show(input('Guide','conversation:a',{holoAssets:fourPlanes()}));env.api.hide();assert.equal(options.signal.aborted,true);resolve({setView(){},dispose(){disposed++;}});await Promise.resolve();await Promise.resolve();assert.equal(disposed,1);assert.equal(env.api.status().mounted,false);assert.equal(env.document.body.children.length,0);
 });
 await checkAsync('GPU failure preserves the accessible original-avatar fallback rather than failing the badge',async()=>{
-  const env=environment({materialFactory:async()=>{throw new Error('WebGL unavailable');}});env.api.show(input('Milo','conversation:a',{holoAssets:fourPlanes(),avatarDataUrl:'data:image/png;base64,QUJDRA=='}));await Promise.resolve();await Promise.resolve();await Promise.resolve();assert.equal(env.api.status().material,'fallback');assert.equal(env.api.status().mounted,true);assert.equal(env.api.status().failed,false);assert.match(env.root().querySelector('.front').textContent,/Milo/);
+  const env=environment({materialFactory:async()=>{throw new Error('WebGL unavailable');}});env.api.show(input('Guide','conversation:a',{holoAssets:fourPlanes(),avatarDataUrl:'data:image/png;base64,QUJDRA=='}));await Promise.resolve();await Promise.resolve();await Promise.resolve();assert.equal(env.api.status().material,'fallback');assert.equal(env.api.status().mounted,true);assert.equal(env.api.status().failed,false);assert.match(env.root().querySelector('.front').textContent,/Guide/);
 });
 
 const keyFor=number=>number.toString(16).padStart(64,'0');
-const cachedInput=(name='Milo',key=keyFor(1),extra={})=>input(name,`conversation:${name}`,{assetKey:key,role:{...profile(name),imageId:key},holoAssets:fourPlanes(),...extra});
+const cachedInput=(name='Guide',key=keyFor(1),extra={})=>input(name,`conversation:${name}`,{assetKey:key,role:{...profile(name),imageId:key},holoAssets:fourPlanes(),...extra});
 function warmInput(full,extra={}){const result={...full,...extra};for(const name of ['avatarDataUrl','foregroundDataUrl','contourDataUrl','holoAssets'])delete result[name];return result;}
 const settle=async()=>{for(let i=0;i<5;i++)await Promise.resolve();};
 function materialHarness(){
@@ -413,7 +456,7 @@ await checkAsync('public examples sharing one avatar cache never share another r
 await checkAsync('title changes park ready pixels but only explicit current-context show can remount them',async()=>{
   const {env,materials}=materialHarness(),first=cachedInput();env.api.show(first);await settle();const original=env.layer();
   env.document.title='Other conversation';assert.equal(env.api.status().mounted,false);assert.equal(env.api.status().stale,true);assert.equal(materials[0].disposed,0);
-  env.document.title='Milo';assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
+  env.document.title='Guide';assert.equal(env.api.restore().mounted,false);assert.equal(env.document.body.children.length,0);
   const result=env.api.show(warmInput(first));assert.equal(result.uiCacheHit,true);assert.equal(env.layer(),original);assert.equal(env.api.status().stale,false);assert.equal(materials.length,1);env.api.uninstall();
 });
 await checkAsync('cached canvases redraw once when a restored back, collapsed or hidden card becomes visible',async()=>{
@@ -428,8 +471,8 @@ await checkAsync('cached canvases redraw once when a restored back, collapsed or
 });
 await checkAsync('unknown keys, image mismatches and invalid references never leave another identity visible',async()=>{
   const {env}=materialHarness(),first=cachedInput();env.api.show(first);await settle();
-  let result=env.api.show(warmInput(cachedInput('Maxie',keyFor(2))));assert.equal(result.assetCacheMiss,true);assert.equal(result.mounted,false);assert.equal(result.restorable,false);assert.equal(result.roleId,'maxie');assert.equal(result.failed,false);
-  result=env.api.show(warmInput(first,{role:{...profile('Maxie'),imageId:keyFor(99)}}));assert.equal(result.assetCacheMiss,true);assert.equal(result.mounted,false);assert.equal(result.roleId,'maxie');
+  let result=env.api.show(warmInput(cachedInput('MakerPlus',keyFor(2))));assert.equal(result.assetCacheMiss,true);assert.equal(result.mounted,false);assert.equal(result.restorable,false);assert.equal(result.roleId,'makerplus');assert.equal(result.failed,false);
+  result=env.api.show(warmInput(first,{role:{...profile('MakerPlus'),imageId:keyFor(99)}}));assert.equal(result.assetCacheMiss,true);assert.equal(result.mounted,false);assert.equal(result.roleId,'makerplus');
   result=env.api.show(first);assert.equal(result.mounted,true);assert.equal(result.assetCacheMiss,false);
   result=env.api.show(warmInput(first,{assetKey:'toString'}));assert.equal(result.failed,true);assert.equal(result.error,'invalid-asset-key');assert.equal(result.mounted,false);env.api.uninstall();
 });
@@ -472,7 +515,7 @@ await checkAsync('dismissal, disablement and empty images retain explicit author
 });
 await checkAsync('loading feedback is local, immediately readable, stopped on hidden/back/collapse and static for reduced motion',async()=>{
   let resolve;const env=environment({materialFactory:()=>new Promise(done=>resolve=done)}),first=cachedInput();env.api.show(first);const root=env.root(),loading=root.querySelector('.loading'),shell=root.querySelector('.shell');
-  assert.equal(loading.hidden,false);assert.match(loading.textContent,/正在加载工牌/);assert.match(root.querySelector('.names').textContent,/Milo/);assert.match(root.querySelector('.duties').textContent,/查待办/);
+  assert.equal(loading.hidden,false);assert.match(loading.textContent,/正在加载工牌/);assert.match(root.querySelector('.names').textContent,/Guide/);assert.match(root.querySelector('.duties').textContent,/查待办/);
   event(active(root,'.front'),'click');assert.equal(loading.hidden,true);event(active(root,'.back'),'click');assert.equal(loading.hidden,false);
   event(active(root,'.collapse'),'click');assert.equal(loading.hidden,true);event(active(root,'.mini'),'click');assert.equal(loading.hidden,false);
   env.document.hidden=true;event(env.document,'visibilitychange');assert.equal(loading.hidden,true);assert.equal(shell.getAttribute('data-loading-paused'),'');env.document.hidden=false;event(env.document,'visibilitychange');assert.equal(loading.hidden,false);
@@ -480,7 +523,7 @@ await checkAsync('loading feedback is local, immediately readable, stopped on hi
   resolve({setView(){},dispose(){}});await settle();assert.equal(loading.hidden,true);env.api.hide();assert.equal(env.api.show(warmInput(first)).uiCacheHit,true);assert.equal(loading.hidden,true);env.api.uninstall();
 });
 await checkAsync('WebGL fallback keeps feedback until the original image loads, then removes it',async()=>{
-  const env=environment({materialFactory:async()=>{throw Error('unsupported');}});env.api.show(cachedInput('Milo',keyFor(70),{avatarDataUrl:'data:image/png;base64,QUJDRA=='}));await settle();const root=env.root();assert.equal(env.api.status().material,'fallback');assert.equal(root.querySelector('.loading').hidden,false);
+  const env=environment({materialFactory:async()=>{throw Error('unsupported');}});env.api.show(cachedInput('Guide',keyFor(70),{avatarDataUrl:'data:image/png;base64,QUJDRA=='}));await settle();const root=env.root();assert.equal(env.api.status().material,'fallback');assert.equal(root.querySelector('.loading').hidden,false);
   for(const image of root.querySelectorAll('.portrait'))event(image,'load');assert.equal(root.querySelector('.loading').hidden,true);env.api.uninstall();
 });
 process.stdout.write(`${checks} total renderer contracts passed. Cache reuse and ownership are verified offline; native image decoding and visual animation still require browser checks.\n`);
