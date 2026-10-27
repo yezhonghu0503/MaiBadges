@@ -2,8 +2,9 @@
 (() => {
   'use strict';
   const sample=/* __PREVIEW_SAMPLE_DATA__ */ null;
-  const avatars=Object.assign(Object.create(null),sample?.miloSourceId?{
-    [sample.miloSourceId]:{avatarDataUrl:sample.avatarDataUrl||'',foregroundDataUrl:sample.foregroundDataUrl||'',contourDataUrl:sample.contourDataUrl||'',holoAssets:sample.holoAssets||{}}
+  const sourceImageId=sample?.sourceImageId??sample?.miloSourceId;
+  const avatars=Object.assign(Object.create(null),sourceImageId?{
+    [sourceImageId]:{avatarDataUrl:sample.avatarDataUrl||'',foregroundDataUrl:sample.foregroundDataUrl||'',contourDataUrl:sample.contourDataUrl||'',holoAssets:sample.holoAssets||{}}
   }:{},sample?.avatars);
   let theme=window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light';
   const snapshot={version:1,roles:sample?.profiles||[],bindings:[],contexts:[]};
